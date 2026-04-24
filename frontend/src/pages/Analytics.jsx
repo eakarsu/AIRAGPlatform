@@ -1,0 +1,119 @@
+import { useEffect, useState } from 'react'
+import { getAnalytics } from '../api/client'
+import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import { HiDocument, HiChat, HiDatabase, HiClipboardList, HiUsers, HiMail, HiTag, HiTemplate, HiClock, HiStar } from 'react-icons/hi'
+
+export default function Analytics() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    getAnalytics()
+      .then(res => setData(res.data))
+      .catch(() => toast.error('Failed to load analytics'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return (
+    <div className="animate-pulse space-y-6">
+      <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+      <div className="grid grid-cols-3 gap-4">
+        {[...Array(6)].map((_, i) => <div key={i} className="h-28 bg-gray-100 rounded-xl"></div>)}
+      </div>
+    </div>
+  )
+
+  if (!data) return null
+
+  const stats = [
+    { label: 'Total Documents', value: data.total_documents, icon: HiDocument, bg: 'bg-blue-50', text: 'text-blue-600' },
+    { label: 'Knowledge Chunks', value: data.total_chunks, icon: HiDatabase, bg: 'bg-emerald-50', text: 'text-emerald-600' },
+    { label: 'Chat Sessions', value: data.total_sessions, icon: HiChat, bg: 'bg-purple-50', text: 'text-purple-600' },
+    { label: 'Chat Messages', value: data.total_messages, icon: HiMail, bg: 'bg-pink-50', text: 'text-pink-600' },
+    { label: 'AI Summaries', value: data.total_summaries, icon: HiClipboardList, bg: 'bg-amber-50', text: 'text-amber-600' },
+    { label: 'Registered Users', value: data.total_users, icon: HiUsers, bg: 'bg-cyan-50', text: 'text-cyan-600' },
+    { label: 'Tags', value: data.total_tags, icon: HiTag, bg: 'bg-indigo-50', text: 'text-indigo-600' },
+    { label: 'Templates', value: data.total_templates, icon: HiTemplate, bg: 'bg-violet-50', text: 'text-violet-600' },
+    { label: 'Activities', value: data.total_activities, icon: HiClock, bg: 'bg-slate-50', text: 'text-slate-600' },
+    { label: 'Favorites', value: data.total_favorites, icon: HiStar, bg: 'bg-yellow-50', text: 'text-yellow-600' },
+  ]
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+        <p className="text-gray-500 text-sm mt-1">Platform statistics and usage metrics</p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {stats.map((stat) => (
+          <div key={stat.label} className="card flex items-center gap-4">
+            <div className={`w-12 h-12 ${stat.bg} rounded-xl flex items-center justify-center`}>
+              <stat.icon className={`w-6 h-6 ${stat.text}`} />
+            </div>
+            <div>
+              <p className={`text-2xl font-bold ${stat.text}`}>{stat.value}</p>
+              <p className="text-sm text-gray-500">{stat.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Recent Documents */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Documents</h2>
+          {data.recent_documents.length === 0 ? (
+            <p className="text-gray-500 text-sm">No documents yet</p>
+          ) : (
+            <div className="space-y-3">
+              {data.recent_documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  onClick={() => navigate(`/documents/${doc.id}`)}
+                  className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                >
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <HiDocument className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{doc.title}</p>
+                    <p className="text-xs text-gray-400">{doc.file_type.toUpperCase()} &middot; {new Date(doc.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Chat Sessions</h2>
+          {data.recent_sessions.length === 0 ? (
+            <p className="text-gray-500 text-sm">No sessions yet</p>
+          ) : (
+            <div className="space-y-3">
+              {data.recent_sessions.map((session) => (
+                <div
+                  key={session.id}
+                  onClick={() => navigate(`/chat/${session.id}`)}
+                  className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                >
+                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <HiChat className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{session.title}</p>
+                    <p className="text-xs text-gray-400">{session.message_count || 0} messages &middot; {new Date(session.updated_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
