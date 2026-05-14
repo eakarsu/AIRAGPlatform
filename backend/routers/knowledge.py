@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.database_models import KnowledgeChunk, Document
 from models.schemas import KnowledgeChunkResponse, KnowledgeChunkCreate, KnowledgeChunkUpdate
+from services.embedding_service import embed_texts
+from services import vector_store
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
@@ -68,6 +70,22 @@ def update_chunk(chunk_id: int, data: KnowledgeChunkUpdate, db: Session = Depend
 
     db.commit()
     db.refresh(chunk)
+
+    # Re-embed the updated chunk in vector store to prevent desync
+    if data.chunk_text is not None:
+        try:
+            new_embeddings = embed_texts([chunk.chunk_text])
+            chroma_id = f"doc{chunk.document_id}_chunk{chunk.id}"
+            collection = vector_store.get_collection()
+            collection.update(
+                ids=[chroma_id],
+                embeddings=new_embeddings,
+                documents=[chunk.chunk_text],
+                metadatas=[{"document_id": chunk.document_id, "chunk_id": chunk.id, "chunk_index": chunk.chunk_index}],
+            )
+        except Exception:
+            pass  # Vector store update failure is non-fatal
+
     return KnowledgeChunkResponse(**chunk_to_response(chunk, db))
 
 

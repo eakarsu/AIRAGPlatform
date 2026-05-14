@@ -105,4 +105,17 @@ export const getSettings = () => api.get('/users/settings/me')
 export const updateSettings = (data) => api.put('/users/settings/me', data)
 export const changePassword = (data) => api.post('/users/settings/change-password', data)
 
+// Workspaces
+export const getWorkspaces = () => api.get('/workspaces/')
+export const createWorkspace = (data) => api.post('/workspaces/', data)
+export const getWorkspace = (id) => api.get(`/workspaces/${id}`)
+export const updateWorkspace = (id, data) => api.put(`/workspaces/${id}`, data)
+export const deleteWorkspace = (id) => api.delete(`/workspaces/${id}`)
+export const getWorkspaceMembers = (id) => api.get(`/workspaces/${id}/members`)
+export const inviteWorkspaceMember = (id, data) => api.post(`/workspaces/${id}/invite`, data)
+export const removeWorkspaceMember = (workspaceId, userId) => api.delete(`/workspaces/${workspaceId}/members/${userId}`)
+
+// Usage Analytics
+export const getUsageAnalytics = () => api.get('/analytics/usage')
+
 export default api

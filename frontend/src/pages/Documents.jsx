@@ -154,6 +154,14 @@ export default function Documents() {
                     </span>
                     <span className="text-xs text-gray-400">{(doc.file_size / 1024).toFixed(1)} KB</span>
                     <span className="text-xs text-gray-400">{doc.chunk_count} chunks</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      doc.status === 'processed' ? 'bg-green-100 text-green-700' :
+                      doc.status === 'processing' ? 'bg-yellow-100 text-yellow-700' :
+                      doc.status === 'failed' ? 'bg-red-100 text-red-700' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {doc.status}
+                    </span>
                     <span className="text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>

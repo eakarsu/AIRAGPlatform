@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import get_db
-from models.database_models import ChatSession, ChatMessage, Document, KnowledgeChunk
+from models.database_models import ChatSession, ChatMessage, Document, KnowledgeChunk, User
 from models.schemas import (
     ChatRequest, ChatResponse, ChatMessageResponse,
     ChatSessionCreate, ChatSessionUpdate, ChatSessionResponse,
 )
 from services.embedding_service import embed_query
 from services import vector_store, llm_service
+from routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -34,7 +35,11 @@ def session_to_response(session: ChatSession, db: Session) -> dict:
 
 
 @router.post("/", response_model=ChatResponse)
-def send_message(data: ChatRequest, db: Session = Depends(get_db)):
+def send_message(
+    data: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # Get or create session
     if data.session_id:
         session = db.query(ChatSession).filter(ChatSession.id == data.session_id).first()
@@ -42,7 +47,7 @@ def send_message(data: ChatRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Session not found")
     else:
         title = data.message[:50] + ("..." if len(data.message) > 50 else "")
-        session = ChatSession(title=title, user_id=1)
+        session = ChatSession(title=title, user_id=current_user.id)
         db.add(session)
         db.commit()
         db.refresh(session)

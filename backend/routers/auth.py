@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 import bcrypt
 from jose import JWTError, jwt
@@ -10,6 +11,8 @@ from models.schemas import UserCreate, UserLogin, UserResponse, TokenResponse
 from config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
@@ -42,6 +45,33 @@ def get_current_user_id(token: str) -> int | None:
     if payload and "user_id" in payload:
         return payload["user_id"]
     return None
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Security(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = verify_token(credentials.credentials)
+    if not payload or "user_id" not in payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    user = db.query(User).filter(User.id == payload["user_id"]).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+
+def get_optional_user(
+    credentials: HTTPAuthorizationCredentials = Security(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User | None:
+    if not credentials:
+        return None
+    payload = verify_token(credentials.credentials)
+    if not payload or "user_id" not in payload:
+        return None
+    return db.query(User).filter(User.id == payload["user_id"]).first()
 
 
 @router.post("/register", response_model=TokenResponse)

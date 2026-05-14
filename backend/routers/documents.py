@@ -5,12 +5,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import get_db
-from models.database_models import Document, KnowledgeChunk
+from models.database_models import Document, KnowledgeChunk, User, DocumentEvent
 from models.schemas import DocumentResponse, DocumentUpdate
 from services.document_processor import extract_text, chunk_text, get_file_type
 from services.embedding_service import embed_texts
 from services import vector_store
 from config import settings
+from routers.auth import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -39,6 +40,7 @@ def upload_document(
     file: UploadFile = File(...),
     title: str = Form(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
@@ -64,7 +66,7 @@ def upload_document(
         content=content,
         file_size=file_size,
         status="processing",
-        user_id=1,
+        user_id=current_user.id,
     )
     db.add(doc)
     db.commit()
@@ -93,12 +95,24 @@ def upload_document(
             embeddings = embed_texts(chunks)
             chunk_ids = [cr.id for cr in chunk_records]
             vector_store.add_document(doc.id, chunks, embeddings, chunk_ids)
-        except Exception:
-            pass  # Vector store failure shouldn't block document creation
+            doc.status = "processed"
+        except Exception as e:
+            # Mark document as failed if vector store errors
+            doc.status = "failed"
+        db.commit()
+        db.refresh(doc)
+    else:
+        doc.status = "processed"
+        db.commit()
+        db.refresh(doc)
 
-    doc.status = "processed"
-    db.commit()
-    db.refresh(doc)
+    # Log document event
+    try:
+        event = DocumentEvent(document_id=doc.id, user_id=current_user.id, event_type="upload")
+        db.add(event)
+        db.commit()
+    except Exception:
+        pass
 
     return DocumentResponse(**doc_to_response(doc, db))
 

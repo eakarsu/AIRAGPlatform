@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react'
-import { getAnalytics } from '../api/client'
+import { getAnalytics, getUsageAnalytics } from '../api/client'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { HiDocument, HiChat, HiDatabase, HiClipboardList, HiUsers, HiMail, HiTag, HiTemplate, HiClock, HiStar } from 'react-icons/hi'
+import { HiDocument, HiChat, HiDatabase, HiClipboardList, HiUsers, HiMail, HiTag, HiTemplate, HiClock, HiStar, HiChartBar } from 'react-icons/hi'
 
 export default function Analytics() {
   const [data, setData] = useState(null)
+  const [usage, setUsage] = useState(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
   useEffect(() => {
-    getAnalytics()
-      .then(res => setData(res.data))
+    Promise.all([
+      getAnalytics().then(res => setData(res.data)),
+      getUsageAnalytics().then(res => setUsage(res.data)).catch(() => {}),
+    ])
       .catch(() => toast.error('Failed to load analytics'))
       .finally(() => setLoading(false))
   }, [])
@@ -61,6 +64,43 @@ export default function Analytics() {
           </div>
         ))}
       </div>
+
+      {/* Usage Analytics */}
+      {usage && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <HiChartBar className="w-5 h-5 text-indigo-500" /> Document Event Analytics
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="text-center p-3 bg-indigo-50 rounded-lg">
+              <p className="text-2xl font-bold text-indigo-700">{usage.total_events}</p>
+              <p className="text-xs text-indigo-600">Total Events</p>
+            </div>
+            {Object.entries(usage.events_by_type || {}).map(([type, count]) => (
+              <div key={type} className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-2xl font-bold text-gray-700">{count}</p>
+                <p className="text-xs text-gray-500 capitalize">{type}</p>
+              </div>
+            ))}
+          </div>
+          {usage.top_documents?.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Most Accessed Documents</h3>
+              <div className="space-y-2">
+                {usage.top_documents.map((d, i) => (
+                  <div key={d.document_id} className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2">
+                      <span className="w-5 h-5 flex items-center justify-center bg-indigo-100 text-indigo-700 rounded text-xs font-bold">{i + 1}</span>
+                      <span className="text-gray-700 truncate max-w-xs">{d.document_title}</span>
+                    </span>
+                    <span className="text-gray-500 text-xs">{d.event_count} events</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Recent Documents */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

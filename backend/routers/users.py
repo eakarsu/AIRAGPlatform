@@ -9,6 +9,7 @@ from models.schemas import (
     UserManageResponse, UserManageUpdate, UserCreate, UserResponse,
     PasswordChange, SettingsResponse,
 )
+from routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -38,42 +39,45 @@ def user_to_response(user: User, db: Session) -> dict:
 
 # --- Settings (must come before /{user_id} routes) ---
 @router.get("/settings/me", response_model=SettingsResponse)
-def get_settings(db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == 1).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    total_docs = db.query(func.count(Document.id)).filter(Document.user_id == user.id).scalar()
-    total_sess = db.query(func.count(ChatSession.id)).filter(ChatSession.user_id == user.id).scalar()
-    total_favs = db.query(func.count(Favorite.id)).filter(Favorite.user_id == user.id).scalar()
+def get_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    total_docs = db.query(func.count(Document.id)).filter(Document.user_id == current_user.id).scalar()
+    total_sess = db.query(func.count(ChatSession.id)).filter(ChatSession.user_id == current_user.id).scalar()
+    total_favs = db.query(func.count(Favorite.id)).filter(Favorite.user_id == current_user.id).scalar()
     return SettingsResponse(
-        id=user.id, email=user.email, name=user.name, role=user.role or "user",
-        created_at=user.created_at,
+        id=current_user.id, email=current_user.email, name=current_user.name,
+        role=current_user.role or "user",
+        created_at=current_user.created_at,
         total_documents=total_docs, total_sessions=total_sess, total_favorites=total_favs,
     )
 
 
 @router.put("/settings/me", response_model=UserResponse)
-def update_settings(data: UserManageUpdate, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == 1).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+def update_settings(
+    data: UserManageUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     if data.name is not None:
-        user.name = data.name
+        current_user.name = data.name
     if data.email is not None:
-        user.email = data.email
+        current_user.email = data.email
     db.commit()
-    db.refresh(user)
-    return UserResponse.model_validate(user)
+    db.refresh(current_user)
+    return UserResponse.model_validate(current_user)
 
 
 @router.post("/settings/change-password")
-def change_password(data: PasswordChange, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == 1).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if not verify_password(data.current_password, user.password_hash):
+def change_password(
+    data: PasswordChange,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not verify_password(data.current_password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
-    user.password_hash = hash_password(data.new_password)
+    current_user.password_hash = hash_password(data.new_password)
     db.commit()
     return {"message": "Password changed successfully"}
 

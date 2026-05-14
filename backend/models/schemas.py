@@ -337,3 +337,67 @@ class AnalyticsResponse(BaseModel):
     total_favorites: int
     recent_documents: List[DocumentResponse]
     recent_sessions: List[ChatSessionResponse]
+
+
+# --- Workspaces ---
+class WorkspaceCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    slug: Optional[str] = None
+
+
+class WorkspaceUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class WorkspaceMemberResponse(BaseModel):
+    id: int
+    workspace_id: int
+    user_id: int
+    role: str
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkspaceResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    owner_id: int
+    slug: str
+    is_active: bool
+    member_count: Optional[int] = 0
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkspaceInviteRequest(BaseModel):
+    user_id: int
+    role: Optional[str] = "member"
+
+
+# --- Document Events ---
+class DocumentEventResponse(BaseModel):
+    id: int
+    document_id: int
+    user_id: Optional[int] = None
+    event_type: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UsageAnalyticsResponse(BaseModel):
+    total_events: int
+    events_by_type: dict
+    top_documents: List[dict]
+    daily_events: List[dict]
+    total_documents: int
+    total_users: int
