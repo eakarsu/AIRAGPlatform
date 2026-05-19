@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { HiHome, HiDocument, HiChat, HiDatabase, HiClipboardList, HiSearch, HiChartBar, HiLogout, HiTag, HiTemplate, HiClock, HiStar, HiUserGroup, HiCog, HiOfficeBuilding, HiChevronDown } from 'react-icons/hi'
+import { HiHome, HiDocument, HiChat, HiDatabase, HiClipboardList, HiSearch, HiChartBar, HiLogout, HiTag, HiTemplate, HiClock, HiStar, HiUserGroup, HiCog, HiOfficeBuilding, HiChevronDown, HiViewGrid } from 'react-icons/hi'
 import { getWorkspaces } from '../api/client'
 
 const navItems = [
@@ -18,6 +18,7 @@ const navItems = [
   { path: '/workspaces', icon: HiOfficeBuilding, label: 'Workspaces' },
   { path: '/users', icon: HiUserGroup, label: 'Users' },
   { path: '/settings', icon: HiCog, label: 'Settings' },
+  { path: '/custom-views', icon: HiViewGrid, label: 'RAG Views' },
 ]
 
 export default function Sidebar() {

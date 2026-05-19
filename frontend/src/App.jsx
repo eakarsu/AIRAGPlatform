@@ -16,6 +16,7 @@ import Favorites from './pages/Favorites'
 import UserManagement from './pages/UserManagement'
 import Settings from './pages/Settings'
 import Workspaces from './pages/Workspaces'
+import CustomViewsPage from './pages/CustomViewsPage'
 import Layout from './components/Layout'
 
 // === Batch 07 Gaps & Frontend Mounts ===
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="users" element={<UserManagement />} />
         <Route path="settings" element={<Settings />} />
         <Route path="workspaces" element={<Workspaces />} />
+        <Route path="custom-views" element={<CustomViewsPage />} />
       </Route>
           // === Batch 07 Gaps & Frontend Mounts ===
           <Route path='/cf-multisource-rag' element={<CfMultisourceRag />} />
