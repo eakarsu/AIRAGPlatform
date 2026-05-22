@@ -199,7 +199,7 @@ class DocumentEvent(Base):
     document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     event_type = Column(String(50), nullable=False)
-    metadata = Column(JSON, nullable=True)
+    event_metadata = Column("metadata", JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     document = relationship("Document")

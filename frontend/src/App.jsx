@@ -38,6 +38,9 @@ import GapNoBulkImportS3GoogleDriveSharepointCo from './pages/GapNoBulkImportS3G
 import GapNoNotificationSystem from './pages/GapNoNotificationSystem';
 import GapNoAuditLogOfWhoQueriedWhat from './pages/GapNoAuditLogOfWhoQueriedWhat';
 import GapNoExportshareWorkflow from './pages/GapNoExportshareWorkflow';
+import CodexCustomVizFeature from './pages/CodexCustomVizFeature';
+import CodexOperationsFeature from './pages/CodexOperationsFeature';
+
 // === End Batch 07 ===
 
 
@@ -49,6 +52,9 @@ function PrivateRoute({ children }) {
 export default function App() {
   return (
     <Routes>
+        <Route path="/codex/custom-viz" element={<CodexCustomVizFeature />} />
+        <Route path="/codex/operations" element={<CodexOperationsFeature />} />
+
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<Dashboard />} />

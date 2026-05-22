@@ -82,3 +82,8 @@ app.include_router(_b07_gap_no_audit_log_of_who_queried_what.router)
 from routers import gap_no_exportshare_workflow as _b07_gap_no_exportshare_workflow
 app.include_router(_b07_gap_no_exportshare_workflow.router)
 # === End Batch 07 ===
+
+# === Custom Views (RAG Views) ===
+from routers import custom_views as _custom_views
+app.include_router(_custom_views.router)
+# === End Custom Views ===

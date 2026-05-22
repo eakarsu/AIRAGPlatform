@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 # TODO: configure credentials — set OPENROUTER_API_KEY env var
-MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3-5-sonnet-20241022")
+MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5")
 BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 router = APIRouter(prefix="", tags=["ai", "multi-source-rag"])
