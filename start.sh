@@ -31,10 +31,25 @@ clean_port() {
     fi
 }
 
-clean_port 8000
-clean_port 3000
-clean_port 3000
+clean_port 8050
+clean_port 3056
 echo -e "${GREEN}  Ports cleaned.${NC}"
+
+wait_for_url() {
+    local name=$1
+    local url=$2
+    local attempts=${3:-60}
+    echo -e "  Waiting for $name: $url"
+    for ((i=1; i<=attempts; i++)); do
+        if curl -fsS "$url" >/dev/null 2>&1; then
+            echo -e "${GREEN}  $name is ready.${NC}"
+            return 0
+        fi
+        sleep 1
+    done
+    echo -e "${RED}  $name did not become ready at $url${NC}"
+    return 1
+}
 
 # ============================================
 # 2. Check PostgreSQL
@@ -100,10 +115,16 @@ python -c "from database import create_tables; create_tables()" 2>&1
 python seed.py 2>&1
 
 # Start backend with auto-reload (watches for code changes)
-echo -e "${GREEN}  Starting backend on port 8000 with auto-reload...${NC}"
-uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
+echo -e "${GREEN}  Starting backend on port 8050 with auto-reload...${NC}"
+uvicorn main:app --reload --host 0.0.0.0 --port 8050 &
 BACKEND_PID=$!
 cd "$PROJECT_DIR"
+
+wait_for_url "Backend" "http://localhost:8050/api/health" 90 || {
+    echo -e "${RED}  Backend failed to start. Stop and inspect the log above.${NC}"
+    kill $BACKEND_PID 2>/dev/null
+    exit 1
+}
 
 # ============================================
 # 5. Setup Frontend
@@ -121,10 +142,17 @@ else
 fi
 
 # Start frontend with hot module replacement (watches for code changes)
-echo -e "${GREEN}  Starting frontend on port 3000 with hot reload...${NC}"
+echo -e "${GREEN}  Starting frontend on port 3056 with hot reload...${NC}"
 npm run dev &
 FRONTEND_PID=$!
 cd "$PROJECT_DIR"
+
+wait_for_url "Frontend" "http://localhost:3056" 60 || {
+    echo -e "${RED}  Frontend failed to start. Stop and inspect the log above.${NC}"
+    kill $BACKEND_PID 2>/dev/null
+    kill $FRONTEND_PID 2>/dev/null
+    exit 1
+}
 
 # ============================================
 # 6. Ready!
@@ -134,9 +162,9 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}    AI RAG Platform is running!         ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-echo -e "  Frontend:  ${BLUE}http://localhost:3000${NC}"
-echo -e "  Backend:   ${BLUE}http://localhost:8000${NC}"
-echo -e "  API Docs:  ${BLUE}http://localhost:8000/docs${NC}"
+echo -e "  Frontend:  ${BLUE}http://localhost:3056${NC}"
+echo -e "  Backend:   ${BLUE}http://localhost:8050${NC}"
+echo -e "  API Docs:  ${BLUE}http://localhost:8050/docs${NC}"
 echo ""
 echo -e "  Demo Login: ${YELLOW}demo@airag.com${NC} / ${YELLOW}demo123${NC}"
 echo ""
@@ -151,8 +179,8 @@ cleanup() {
     kill $BACKEND_PID 2>/dev/null
     kill $FRONTEND_PID 2>/dev/null
     # Clean up any remaining processes on the ports
-    clean_port 8000
-    clean_port 3000
+    clean_port 8050
+    clean_port 3056
     echo -e "${RED}Services stopped.${NC}"
     exit 0
 }

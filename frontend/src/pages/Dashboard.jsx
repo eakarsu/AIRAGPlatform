@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { HiDocument, HiChat, HiDatabase, HiClipboardList, HiSearch, HiChartBar, HiTag, HiTemplate, HiClock, HiStar, HiUserGroup, HiCog } from 'react-icons/hi'
+import { HiDocument, HiChat, HiDatabase, HiClipboardList, HiSearch, HiChartBar, HiTag, HiTemplate, HiClock, HiStar, HiUserGroup, HiCog, HiSparkles } from 'react-icons/hi'
 import { getAnalytics } from '../api/client'
 
 const features = [
+  {
+    path: '/ai-hub',
+    icon: HiSparkles,
+    title: 'AI Hub',
+    description: 'Open every custom RAG AI workflow, gap-analysis tool, provenance feature, and source discovery assistant.',
+    color: 'from-fuchsia-500 to-purple-600',
+    bgColor: 'bg-fuchsia-50',
+    textColor: 'text-fuchsia-600',
+    countKey: null,
+  },
   {
     path: '/documents',
     icon: HiDocument,

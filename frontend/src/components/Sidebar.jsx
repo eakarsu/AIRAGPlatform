@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { HiHome, HiDocument, HiChat, HiDatabase, HiClipboardList, HiSearch, HiChartBar, HiLogout, HiTag, HiTemplate, HiClock, HiStar, HiUserGroup, HiCog, HiOfficeBuilding, HiChevronDown, HiViewGrid } from 'react-icons/hi'
+import { HiHome, HiDocument, HiChat, HiDatabase, HiClipboardList, HiSearch, HiChartBar, HiLogout, HiTag, HiTemplate, HiClock, HiStar, HiUserGroup, HiCog, HiOfficeBuilding, HiChevronDown, HiViewGrid, HiSparkles, HiShieldCheck, HiTerminal } from 'react-icons/hi'
 import { getWorkspaces } from '../api/client'
 
 const navItems = [
@@ -19,6 +19,9 @@ const navItems = [
   { path: '/users', icon: HiUserGroup, label: 'Users' },
   { path: '/settings', icon: HiCog, label: 'Settings' },
   { path: '/custom-views', icon: HiViewGrid, label: 'RAG Views' },
+  { path: '/ai-hub', icon: HiSparkles, label: 'AI Hub' },
+  { path: '/platform-ops', icon: HiShieldCheck, label: 'Platform Ops' },
+  { path: '/system-chat', icon: HiTerminal, label: 'System Chat' },
 ]
 
 export default function Sidebar() {

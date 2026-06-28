@@ -17,6 +17,9 @@ import UserManagement from './pages/UserManagement'
 import Settings from './pages/Settings'
 import Workspaces from './pages/Workspaces'
 import CustomViewsPage from './pages/CustomViewsPage'
+import AIHub from './pages/AIHub'
+import PlatformOps from './pages/PlatformOps'
+import SystemChat from './pages/SystemChat'
 import Layout from './components/Layout'
 
 // === Batch 07 Gaps & Frontend Mounts ===
@@ -74,27 +77,28 @@ export default function App() {
         <Route path="settings" element={<Settings />} />
         <Route path="workspaces" element={<Workspaces />} />
         <Route path="custom-views" element={<CustomViewsPage />} />
+        <Route path="ai-hub" element={<AIHub />} />
+        <Route path="platform-ops" element={<PlatformOps />} />
+        <Route path="system-chat" element={<SystemChat />} />
+        <Route path="cf-multisource-rag" element={<CfMultisourceRag />} />
+        <Route path="cf-conversational-document-analyst" element={<CfConversationalDocumentAnalyst />} />
+        <Route path="cf-comparison-contradiction-detection" element={<CfComparisonContradictionDetection />} />
+        <Route path="cf-knowledge-graph-extraction" element={<CfKnowledgeGraphExtraction />} />
+        <Route path="cf-citation-source-tracking" element={<CfCitationSourceTracking />} />
+        <Route path="cf-realtime-document-monitoring" element={<CfRealtimeDocumentMonitoring />} />
+        <Route path="gap-no-explicit-embed-ingestion-route-exposed" element={<GapNoExplicitEmbedIngestionRouteExposed />} />
+        <Route path="gap-no-summarize-collectionlevel-overview" element={<GapNoSummarizeCollectionlevelOverview />} />
+        <Route path="gap-no-recommendsources-crossdocument-discovery" element={<GapNoRecommendsourcesCrossdocumentDiscovery />} />
+        <Route path="gap-no-multisource-rag-apis-dbs-live-web" element={<GapNoMultisourceRagApisDbsLiveWeb />} />
+        <Route path="gap-no-contradictiondetection-across-docs" element={<GapNoContradictiondetectionAcrossDocs />} />
+        <Route path="gap-no-citationprovenance-route" element={<GapNoCitationprovenanceRoute />} />
+        <Route path="gap-no-teamlevel-access-control-role-permissions" element={<GapNoTeamlevelAccessControlRolePermissions />} />
+        <Route path="gap-no-public-webhookintegration-system" element={<GapNoPublicWebhookintegrationSystem />} />
+        <Route path="gap-no-bulk-import-s3-google-drive-sharepoint-co" element={<GapNoBulkImportS3GoogleDriveSharepointCo />} />
+        <Route path="gap-no-notification-system" element={<GapNoNotificationSystem />} />
+        <Route path="gap-no-audit-log-of-who-queried-what" element={<GapNoAuditLogOfWhoQueriedWhat />} />
+        <Route path="gap-no-exportshare-workflow" element={<GapNoExportshareWorkflow />} />
       </Route>
-          // === Batch 07 Gaps & Frontend Mounts ===
-          <Route path='/cf-multisource-rag' element={<CfMultisourceRag />} />
-          <Route path='/cf-conversational-document-analyst' element={<CfConversationalDocumentAnalyst />} />
-          <Route path='/cf-comparison-contradiction-detection' element={<CfComparisonContradictionDetection />} />
-          <Route path='/cf-knowledge-graph-extraction' element={<CfKnowledgeGraphExtraction />} />
-          <Route path='/cf-citation-source-tracking' element={<CfCitationSourceTracking />} />
-          <Route path='/cf-realtime-document-monitoring' element={<CfRealtimeDocumentMonitoring />} />
-          <Route path='/gap-no-explicit-embed-ingestion-route-exposed' element={<GapNoExplicitEmbedIngestionRouteExposed />} />
-          <Route path='/gap-no-summarize-collectionlevel-overview' element={<GapNoSummarizeCollectionlevelOverview />} />
-          <Route path='/gap-no-recommendsources-crossdocument-discovery' element={<GapNoRecommendsourcesCrossdocumentDiscovery />} />
-          <Route path='/gap-no-multisource-rag-apis-dbs-live-web' element={<GapNoMultisourceRagApisDbsLiveWeb />} />
-          <Route path='/gap-no-contradictiondetection-across-docs' element={<GapNoContradictiondetectionAcrossDocs />} />
-          <Route path='/gap-no-citationprovenance-route' element={<GapNoCitationprovenanceRoute />} />
-          <Route path='/gap-no-teamlevel-access-control-role-permissions' element={<GapNoTeamlevelAccessControlRolePermissions />} />
-          <Route path='/gap-no-public-webhookintegration-system' element={<GapNoPublicWebhookintegrationSystem />} />
-          <Route path='/gap-no-bulk-import-s3-google-drive-sharepoint-co' element={<GapNoBulkImportS3GoogleDriveSharepointCo />} />
-          <Route path='/gap-no-notification-system' element={<GapNoNotificationSystem />} />
-          <Route path='/gap-no-audit-log-of-who-queried-what' element={<GapNoAuditLogOfWhoQueriedWhat />} />
-          <Route path='/gap-no-exportshare-workflow' element={<GapNoExportshareWorkflow />} />
-          // === End Batch 07 ===
     </Routes>
   )
 }

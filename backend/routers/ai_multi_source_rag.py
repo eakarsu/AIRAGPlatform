@@ -5,9 +5,10 @@ import httpx
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from config import settings
 
 # TODO: configure credentials — set OPENROUTER_API_KEY env var
-MODEL = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5")
+MODEL = settings.OPENROUTER_MODEL or "anthropic/claude-haiku-4.5"
 BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 router = APIRouter(prefix="", tags=["ai", "multi-source-rag"])
@@ -52,7 +53,7 @@ def parse_json_loose(text: str):
 
 
 async def call_llm(system_prompt: str, user_prompt: str):
-    api_key = os.environ.get("OPENROUTER_API_KEY")
+    api_key = settings.OPENROUTER_API_KEY
     if not api_key:
         raise HTTPException(status_code=503, detail="OPENROUTER_API_KEY not configured")
     headers = {

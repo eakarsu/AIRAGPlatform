@@ -4,6 +4,7 @@ import json
 import urllib.request
 import urllib.error
 from fastapi import APIRouter, Request
+from config import settings
 
 router = APIRouter(prefix="/api/gap-no-explicit-embed-ingestion-route-exposed", tags=["gap-no-explicit-embed-ingestion-route-exposed"])
 
@@ -41,13 +42,13 @@ def _log(db, input_val, output_val):
 
 
 def _call_llm(prompt: str):
-    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = settings.OPENROUTER_API_KEY or os.getenv("OPENAI_API_KEY")
     if not api_key:
         return {"note": "OPENROUTER_API_KEY not set; returning mock", "mock": True, "prompt": prompt[:400]}
     body = json.dumps({
-        "model": os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
+        "model": settings.OPENROUTER_MODEL or "openai/gpt-4o-mini",
         "messages": [
-            {"role": "system", "content": f"You implement the {PROJECT} feature: {FEATURE_TITLE}. Respond with concise JSON when possible."},
+            {"role": "system", "content": f"You implement the {PROJECT} feature: {FEATURE_TITLE}. Respond with strict JSON only. Do not use markdown fences."},
             {"role": "user", "content": prompt},
         ],
     }).encode("utf-8")

@@ -118,4 +118,16 @@ export const removeWorkspaceMember = (workspaceId, userId) => api.delete(`/works
 // Usage Analytics
 export const getUsageAnalytics = () => api.get('/analytics/usage')
 
+// Platform Operations
+export const getPlatformOpsSummary = () => api.get('/platform-ops/summary')
+export const getPlatformOpsModules = () => api.get('/platform-ops/modules')
+export const getPlatformOpsItems = (moduleKey) => api.get(`/platform-ops/${moduleKey}`)
+export const runPlatformOpsAction = (moduleKey, itemId) => api.post(`/platform-ops/${moduleKey}/${itemId}/run`)
+export const updatePlatformOpsItem = (moduleKey, itemId, data) => api.put(`/platform-ops/${moduleKey}/${itemId}`, { data })
+export const deletePlatformOpsItem = (moduleKey, itemId) => api.delete(`/platform-ops/${moduleKey}/${itemId}`)
+
+// System Chat
+export const getSystemChatCapabilities = () => api.get('/system-chat/capabilities')
+export const sendSystemChatMessage = (message, context = {}) => api.post('/system-chat/message', { message, context })
+
 export default api

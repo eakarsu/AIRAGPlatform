@@ -8,6 +8,9 @@ from slowapi.errors import RateLimitExceeded
 from database import create_tables
 from routers import auth, documents, chat, knowledge, ai_features, tags, prompts, activity, favorites, users
 from routers import workspaces, analytics
+from routers import cf_custom_ai_features
+from routers import platform_ops
+from routers import system_chat
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/hour"])
 
@@ -20,11 +23,18 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-CLIENT_URL = os.environ.get("CLIENT_URL", "http://localhost:5173")
+CLIENT_URL = os.environ.get("CLIENT_URL", "http://localhost:3056")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[CLIENT_URL, "http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+    allow_origins=[
+        CLIENT_URL,
+        "http://localhost:3056",
+        "http://127.0.0.1:3056",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,6 +52,9 @@ app.include_router(favorites.router)
 app.include_router(users.router)
 app.include_router(workspaces.router)
 app.include_router(analytics.router)
+app.include_router(cf_custom_ai_features.router)
+app.include_router(platform_ops.router)
+app.include_router(system_chat.router)
 
 
 @app.on_event("startup")
