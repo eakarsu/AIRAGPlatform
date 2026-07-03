@@ -4,10 +4,11 @@ import { uploadDocument } from '../api/client'
 import toast from 'react-hot-toast'
 import { HiUpload, HiDocument } from 'react-icons/hi'
 
-export default function DocumentUpload({ onComplete }) {
+export default function DocumentUpload({ onComplete, workspaces = [], workspaceId = '' }) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [title, setTitle] = useState('')
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaceId || '')
 
   const onDrop = useCallback(async (acceptedFiles) => {
     if (acceptedFiles.length === 0) return
@@ -17,6 +18,9 @@ export default function DocumentUpload({ onComplete }) {
     formData.append('file', file)
     if (title.trim()) {
       formData.append('title', title.trim())
+    }
+    if (selectedWorkspaceId) {
+      formData.append('workspace_id', selectedWorkspaceId)
     }
 
     setUploading(true)
@@ -31,7 +35,7 @@ export default function DocumentUpload({ onComplete }) {
     } finally {
       setUploading(false)
     }
-  }, [title, onComplete])
+  }, [title, selectedWorkspaceId, onComplete])
 
   const { getRootProps, getInputProps, isDragActive, acceptedFiles } = useDropzone({
     onDrop,
@@ -59,6 +63,25 @@ export default function DocumentUpload({ onComplete }) {
           disabled={uploading}
         />
       </div>
+
+      {workspaces.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Workspace
+          </label>
+          <select
+            value={selectedWorkspaceId}
+            onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+            className="input-field"
+            disabled={uploading}
+          >
+            <option value="">Unassigned library</option>
+            {workspaces.map((workspace) => (
+              <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div
         {...getRootProps()}

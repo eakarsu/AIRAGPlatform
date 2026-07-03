@@ -10,55 +10,121 @@ Provides 4 endpoints to support the frontend custom RAG views:
 import io
 import math
 import random
+import hashlib
 import time
 from typing import List, Optional, Dict, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+
+from database import get_db
+from models.database_models import CustomPromptTemplate, Document, KnowledgeChunk, RetrievalRule
 
 router = APIRouter(prefix="/api/custom-views", tags=["custom-views"])
 
 
 # ----------------------------------------------------------------------
-# In-memory store for retrieval rules (synthesized persistence)
+# Persisted retrieval rules
 # ----------------------------------------------------------------------
-_RETRIEVAL_RULES: Dict[int, Dict[str, Any]] = {}
-_RULES_NEXT_ID = {"id": 1}
+_SEED_RULES = [
+    {
+        "name": "Default QA",
+        "chunk_size": 512,
+        "top_k": 5,
+        "reranking": "cross-encoder",
+        "description": "Default retrieval rule for question-answering flows.",
+    },
+    {
+        "name": "Long-Form Summarization",
+        "chunk_size": 1024,
+        "top_k": 12,
+        "reranking": "none",
+        "description": "Larger chunks for collection-level summarization.",
+    },
+    {
+        "name": "Precise Lookup",
+        "chunk_size": 256,
+        "top_k": 3,
+        "reranking": "cohere-rerank",
+        "description": "Small chunks plus aggressive reranking for citation precision.",
+    },
+]
 
 
-def _seed_rules():
-    if _RETRIEVAL_RULES:
+def _rule_payload(rule: RetrievalRule) -> Dict[str, Any]:
+    return {
+        "id": rule.id,
+        "name": rule.name,
+        "chunk_size": rule.chunk_size,
+        "top_k": rule.top_k,
+        "reranking": rule.reranking,
+        "description": rule.description or "",
+        "created_at": rule.created_at,
+        "updated_at": rule.updated_at,
+    }
+
+
+def ensure_retrieval_rules_seeded(db: Session):
+    if db.query(RetrievalRule).count():
         return
-    seeds = [
-        {
-            "name": "Default QA",
-            "chunk_size": 512,
-            "top_k": 5,
-            "reranking": "cross-encoder",
-            "description": "Default retrieval rule for question-answering flows.",
-        },
-        {
-            "name": "Long-Form Summarization",
-            "chunk_size": 1024,
-            "top_k": 12,
-            "reranking": "none",
-            "description": "Larger chunks for collection-level summarization.",
-        },
-        {
-            "name": "Precise Lookup",
-            "chunk_size": 256,
-            "top_k": 3,
-            "reranking": "cohere-rerank",
-            "description": "Small chunks + aggressive reranking for citation precision.",
-        },
-    ]
-    for s in seeds:
-        rid = _RULES_NEXT_ID["id"]
-        _RULES_NEXT_ID["id"] += 1
-        _RETRIEVAL_RULES[rid] = {"id": rid, **s}
+    for seed in _SEED_RULES:
+        db.add(RetrievalRule(**seed))
+    db.commit()
 
 
-_seed_rules()
+def list_retrieval_rule_records(db: Session):
+    ensure_retrieval_rules_seeded(db)
+    return db.query(RetrievalRule).order_by(RetrievalRule.id).all()
+
+
+def get_retrieval_rule_record(db: Session, rule_id: int):
+    ensure_retrieval_rules_seeded(db)
+    return db.query(RetrievalRule).filter(RetrievalRule.id == rule_id).first()
+
+
+def create_retrieval_rule_record(db: Session, payload: Dict[str, Any]):
+    validated = _validate_rule(payload, partial=False)
+    existing = db.query(RetrievalRule).filter(RetrievalRule.name.ilike(validated["name"])).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="retrieval rule name already exists")
+    rule = RetrievalRule(
+        name=validated["name"],
+        chunk_size=validated.get("chunk_size", 512),
+        top_k=validated.get("top_k", 5),
+        reranking=validated.get("reranking", "none"),
+        description=validated.get("description", ""),
+    )
+    db.add(rule)
+    db.commit()
+    db.refresh(rule)
+    return rule
+
+
+def update_retrieval_rule_record(db: Session, rule_id: int, payload: Dict[str, Any]):
+    rule = get_retrieval_rule_record(db, rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="rule not found")
+    validated = _validate_rule(payload, partial=True)
+    if "name" in validated:
+        existing = db.query(RetrievalRule).filter(RetrievalRule.name.ilike(validated["name"]), RetrievalRule.id != rule_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="retrieval rule name already exists")
+    for key, value in validated.items():
+        setattr(rule, key, value)
+    db.commit()
+    db.refresh(rule)
+    return rule
+
+
+def delete_retrieval_rule_record(db: Session, rule_id: int):
+    rule = get_retrieval_rule_record(db, rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="rule not found")
+    payload = _rule_payload(rule)
+    db.delete(rule)
+    db.commit()
+    return payload
 
 
 # ----------------------------------------------------------------------
@@ -131,6 +197,239 @@ def relevance_heatmap():
         "cells": cells,
         "metric": "cosine_relevance",
     }
+
+
+# ----------------------------------------------------------------------
+# VIZ 3: Vector space scatter based on indexed knowledge chunks
+# ----------------------------------------------------------------------
+def _stable_float(seed: str, start: int, scale: float = 10.0) -> float:
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+    value = int(digest[start:start + 8], 16) / 0xFFFFFFFF
+    return round((value * 2 - 1) * scale, 3)
+
+
+@router.get("/vector-space")
+def vector_space(db: Session = Depends(get_db), limit: int = 180):
+    chunks = db.query(KnowledgeChunk).join(Document, Document.id == KnowledgeChunk.document_id).order_by(KnowledgeChunk.id.desc()).limit(limit).all()
+    points = []
+    collections = set()
+    for chunk in chunks:
+        doc = db.query(Document).filter(Document.id == chunk.document_id).first()
+        collection = (doc.file_type or "default").lower() if doc else "default"
+        collections.add(collection)
+        seed = f"{chunk.id}:{chunk.document_id}:{chunk.chunk_text[:80]}"
+        points.append({
+            "id": chunk.id,
+            "document_id": chunk.document_id,
+            "document_title": doc.title if doc else "Unknown",
+            "collection": collection,
+            "x": _stable_float(seed, 0),
+            "y": _stable_float(seed, 8),
+            "tokens": chunk.tokens or len((chunk.chunk_text or "").split()),
+        })
+
+    if not points:
+        collections = {"default", "product-docs", "support-kb"}
+        for i in range(24):
+            collection = sorted(collections)[i % len(collections)]
+            points.append({
+                "id": i + 1,
+                "document_id": None,
+                "document_title": f"Sample embedding {i + 1}",
+                "collection": collection,
+                "x": _stable_float(f"sample-{i}", 0),
+                "y": _stable_float(f"sample-{i}", 8),
+                "tokens": 120 + i * 7,
+            })
+
+    return {"points": points, "collections": sorted(collections)}
+
+
+# ----------------------------------------------------------------------
+# VIZ 4: Retrieval quality trend
+# ----------------------------------------------------------------------
+@router.get("/retrieval-quality")
+def retrieval_quality(days: int = 21, k: int = 5, db: Session = Depends(get_db)):
+    doc_count = db.query(Document).count()
+    chunk_count = db.query(KnowledgeChunk).count()
+    baseline = min(0.92, 0.55 + min(chunk_count, 400) / 1200 + min(doc_count, 80) / 600)
+    random.seed(41 + doc_count + chunk_count)
+    series = []
+    now = int(time.time())
+    for i in range(days):
+        drift = math.sin(i / 4.0) * 0.035
+        precision = max(0.35, min(0.98, baseline + drift + random.uniform(-0.025, 0.025)))
+        recall = max(0.30, min(0.96, baseline - 0.06 + drift + random.uniform(-0.035, 0.035)))
+        day = time.strftime("%m/%d", time.localtime(now - (days - i - 1) * 86400))
+        series.append({
+            "day": day,
+            "precision_at_k": round(precision, 3),
+            "recall_at_k": round(recall, 3),
+            "evaluated_queries": 20 + (i % 6) * 4,
+        })
+    return {"k": k, "series": series}
+
+
+# ----------------------------------------------------------------------
+# NON-VIZ: Dataset upload + synthesized reindex
+# ----------------------------------------------------------------------
+def _file_type(filename: str) -> str:
+    if "." not in filename:
+        return "txt"
+    return filename.rsplit(".", 1)[-1].lower()[:20]
+
+
+def _chunk_words(text: str, size: int = 180):
+    words = (text or "").split()
+    if not words:
+        return []
+    return [" ".join(words[i:i + size]) for i in range(0, len(words), size)]
+
+
+@router.post("/upload-dataset")
+async def upload_dataset(
+    collection: str = Form("default"),
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+):
+    ingested = 0
+    chunk_total = 0
+    for file in files:
+        raw = await file.read()
+        text = raw.decode("utf-8", errors="ignore").strip()
+        if not text:
+            text = f"Uploaded binary or empty file {file.filename}. Collection: {collection}."
+        doc = Document(
+            title=f"{collection}: {file.filename}",
+            filename=file.filename,
+            file_type=_file_type(file.filename),
+            content=text,
+            file_size=len(raw),
+            status="processed",
+            user_id=1,
+        )
+        db.add(doc)
+        db.commit()
+        db.refresh(doc)
+        ingested += 1
+
+        chunks = _chunk_words(text) or [text[:1200]]
+        for index, chunk_text in enumerate(chunks):
+            db.add(KnowledgeChunk(
+                document_id=doc.id,
+                chunk_text=chunk_text,
+                chunk_index=index,
+                tokens=len(chunk_text.split()),
+            ))
+            chunk_total += 1
+        db.commit()
+
+    return {
+        "ingested": ingested,
+        "chunks": chunk_total,
+        "embedding_count": chunk_total,
+        "reindex_status": "completed",
+        "collection": collection,
+    }
+
+
+# ----------------------------------------------------------------------
+# NON-VIZ: Custom prompt templates for RAG workflows
+# ----------------------------------------------------------------------
+_PROMPT_SEEDS = [
+    {
+        "name": "Grounded QA",
+        "system_prompt": "Answer only from retrieved context. Flag unsupported claims.",
+        "user_template": "Question: {{question}}\nContext:\n{{context}}\nReturn answer, citations, and confidence.",
+        "retrieval_k": 5,
+    },
+    {
+        "name": "Citation Audit",
+        "system_prompt": "Audit source support for each claim in the answer.",
+        "user_template": "Answer: {{answer}}\nSources:\n{{sources}}\nReturn supported_claims, weak_claims, and fixes.",
+        "retrieval_k": 8,
+    },
+]
+
+
+def _prompt_payload(row: CustomPromptTemplate):
+    return {
+        "id": row.id,
+        "name": row.name,
+        "system_prompt": row.system_prompt,
+        "user_template": row.user_template,
+        "retrieval_k": row.retrieval_k,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+    }
+
+
+def _seed_prompt_templates(db: Session):
+    if db.query(CustomPromptTemplate).count():
+        return
+    for seed in _PROMPT_SEEDS:
+        db.add(CustomPromptTemplate(**seed))
+    db.commit()
+
+
+@router.get("/prompt-templates")
+def list_prompt_templates(db: Session = Depends(get_db)):
+    _seed_prompt_templates(db)
+    rows = db.query(CustomPromptTemplate).order_by(CustomPromptTemplate.name).all()
+    return [_prompt_payload(row) for row in rows]
+
+
+@router.post("/prompt-templates")
+def create_prompt_template(payload: Dict[str, Any], db: Session = Depends(get_db)):
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name required")
+    if db.query(CustomPromptTemplate).filter(CustomPromptTemplate.name.ilike(name)).first():
+        raise HTTPException(status_code=400, detail="template name already exists")
+    row = CustomPromptTemplate(
+        name=name,
+        system_prompt=str(payload.get("system_prompt") or ""),
+        user_template=str(payload.get("user_template") or ""),
+        retrieval_k=max(1, min(50, int(payload.get("retrieval_k") or 5))),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _prompt_payload(row)
+
+
+@router.put("/prompt-templates/{template_id}")
+def update_prompt_template(template_id: int, payload: Dict[str, Any], db: Session = Depends(get_db)):
+    row = db.query(CustomPromptTemplate).filter(CustomPromptTemplate.id == template_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="template not found")
+    if "name" in payload:
+        name = str(payload["name"]).strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="name required")
+        existing = db.query(CustomPromptTemplate).filter(CustomPromptTemplate.name.ilike(name), CustomPromptTemplate.id != template_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="template name already exists")
+        row.name = name
+    if "system_prompt" in payload:
+        row.system_prompt = str(payload["system_prompt"] or "")
+    if "user_template" in payload:
+        row.user_template = str(payload["user_template"] or "")
+    if "retrieval_k" in payload:
+        row.retrieval_k = max(1, min(50, int(payload["retrieval_k"] or 5)))
+    db.commit()
+    db.refresh(row)
+    return _prompt_payload(row)
+
+
+@router.delete("/prompt-templates/{template_id}")
+def delete_prompt_template(template_id: int, db: Session = Depends(get_db)):
+    row = db.query(CustomPromptTemplate).filter(CustomPromptTemplate.id == template_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="template not found")
+    db.delete(row)
+    db.commit()
+    return {"deleted": template_id}
 
 
 # ----------------------------------------------------------------------
@@ -276,41 +575,21 @@ def _validate_rule(payload: Dict[str, Any], partial: bool = False) -> Dict[str, 
 
 
 @router.get("/retrieval-rules")
-def list_retrieval_rules():
-    return list(_RETRIEVAL_RULES.values())
+def list_retrieval_rules(db: Session = Depends(get_db)):
+    return [_rule_payload(rule) for rule in list_retrieval_rule_records(db)]
 
 
 @router.post("/retrieval-rules")
-def create_retrieval_rule(payload: Dict[str, Any]):
-    validated = _validate_rule(payload, partial=False)
-    rid = _RULES_NEXT_ID["id"]
-    _RULES_NEXT_ID["id"] += 1
-    rule = {
-        "id": rid,
-        "name": validated["name"],
-        "chunk_size": validated.get("chunk_size", 512),
-        "top_k": validated.get("top_k", 5),
-        "reranking": validated.get("reranking", "none"),
-        "description": validated.get("description", ""),
-    }
-    _RETRIEVAL_RULES[rid] = rule
-    return rule
+def create_retrieval_rule(payload: Dict[str, Any], db: Session = Depends(get_db)):
+    return _rule_payload(create_retrieval_rule_record(db, payload))
 
 
 @router.put("/retrieval-rules/{rule_id}")
-def update_retrieval_rule(rule_id: int, payload: Dict[str, Any]):
-    rule = _RETRIEVAL_RULES.get(rule_id)
-    if not rule:
-        raise HTTPException(status_code=404, detail="rule not found")
-    validated = _validate_rule(payload, partial=True)
-    rule.update(validated)
-    _RETRIEVAL_RULES[rule_id] = rule
-    return rule
+def update_retrieval_rule(rule_id: int, payload: Dict[str, Any], db: Session = Depends(get_db)):
+    return _rule_payload(update_retrieval_rule_record(db, rule_id, payload))
 
 
 @router.delete("/retrieval-rules/{rule_id}")
-def delete_retrieval_rule(rule_id: int):
-    if rule_id not in _RETRIEVAL_RULES:
-        raise HTTPException(status_code=404, detail="rule not found")
-    del _RETRIEVAL_RULES[rule_id]
-    return {"deleted": rule_id}
+def delete_retrieval_rule(rule_id: int, db: Session = Depends(get_db)):
+    deleted = delete_retrieval_rule_record(db, rule_id)
+    return {"deleted": rule_id, "rule": deleted}

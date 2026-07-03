@@ -2,8 +2,11 @@ import json
 import os
 import urllib.error
 import urllib.request
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy.orm import Session
 from config import settings
+from database import get_db
+from services.ai_output import normalized_ai_output, record_ai_activity
 
 router = APIRouter(tags=["custom-ai-features"])
 
@@ -92,25 +95,19 @@ def _call_openrouter(feature, user_input):
         return {"summary": "OpenRouter request failed", "error": f"LLM {exc.code}: {detail}", "mock": False}
 
     content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-    try:
-        parsed = json.loads(content)
-    except Exception:
-        parsed = {"summary": content, "raw_response": content}
-    return {
-        "model": data.get("model") or settings.OPENROUTER_MODEL or "anthropic/claude-haiku-4.5",
-        "mock": False,
-        **parsed,
-    }
+    parsed = normalized_ai_output(data.get("model") or settings.OPENROUTER_MODEL or "anthropic/claude-haiku-4.5", content)
+    return {"mock": False, **parsed}
 
 
 def _register_feature(slug, feature):
-    async def run(request: Request):
+    async def run(request: Request, db: Session = Depends(get_db)):
         try:
             body = await request.json()
         except Exception:
             body = {}
         user_input = body.get("input", body) if isinstance(body, dict) else body
         result = _call_openrouter(feature, user_input)
+        record_ai_activity(db, slug, feature["title"], user_input, ok=not bool(result.get("error")))
         return {
             "ok": not bool(result.get("error")),
             "slug": slug,

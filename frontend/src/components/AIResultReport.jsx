@@ -9,9 +9,8 @@ function stripJsonFence(text) {
   if (typeof text !== 'string') return text
   return text
     .trim()
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```$/i, '')
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
     .trim()
 }
 
@@ -43,14 +42,40 @@ function isPlainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value)
 }
 
+function deepParseJsonStrings(value, depth = 0) {
+  if (depth > 5) return value
+
+  if (typeof value === 'string') {
+    const parsed = tryParse(value)
+    if (parsed !== value && (isPlainObject(parsed) || Array.isArray(parsed))) {
+      return deepParseJsonStrings(parsed, depth + 1)
+    }
+    return stripJsonFence(value)
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => deepParseJsonStrings(item, depth + 1))
+  }
+
+  if (isPlainObject(value)) {
+    const normalized = Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, deepParseJsonStrings(item, depth + 1)])
+    )
+    return unwrapEmbeddedReport(normalized, depth + 1)
+  }
+
+  return value
+}
+
 function parseEmbeddedValue(value) {
   if (typeof value !== 'string') return value
   const parsed = tryParse(value)
   return parsed === value ? value : parsed
 }
 
-function unwrapEmbeddedReport(result) {
+function unwrapEmbeddedReport(result, depth = 0) {
   if (!isPlainObject(result)) return result
+  if (depth > 5) return result
 
   const candidates = [
     'summary',
@@ -67,10 +92,11 @@ function unwrapEmbeddedReport(result) {
   for (const key of candidates) {
     const parsed = parseEmbeddedValue(result[key])
     if (isPlainObject(parsed)) {
-      return { ...result, [key]: undefined, ...parsed }
+      const { [key]: _removed, ...rest } = result
+      return unwrapEmbeddedReport({ ...rest, ...deepParseJsonStrings(parsed, depth + 1) }, depth + 1)
     }
     if (Array.isArray(parsed)) {
-      return { ...result, [key]: parsed }
+      return { ...result, [key]: deepParseJsonStrings(parsed, depth + 1) }
     }
   }
 
@@ -79,10 +105,10 @@ function unwrapEmbeddedReport(result) {
 
 function normalizeResult(response) {
   const source = response?.result || response?.output || response?.data || response
-  const parsedSource = tryParse(source)
+  const parsedSource = deepParseJsonStrings(tryParse(source))
   const content = parsedSource?.content || parsedSource?.raw_response || parsedSource?.raw
-  const parsedContent = tryParse(content)
-  const result = unwrapEmbeddedReport(parsedContent && typeof parsedContent === 'object' ? parsedContent : parsedSource)
+  const parsedContent = deepParseJsonStrings(tryParse(content))
+  const result = deepParseJsonStrings(parsedContent && typeof parsedContent === 'object' ? parsedContent : parsedSource)
 
   return {
     title: response?.title || result?.title || 'AI Analysis Report',
@@ -103,6 +129,12 @@ function renderScalar(value) {
   if (typeof value === 'number') return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2)
   if (typeof value === 'string') return value
   return String(value)
+}
+
+function compactText(value) {
+  return renderScalar(value)
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function ValueBlock({ value }) {
@@ -159,11 +191,61 @@ function ValueBlock({ value }) {
   return <span className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800">{renderScalar(value)}</span>
 }
 
+function ObjectTable({ items }) {
+  const keys = Array.from(new Set(items.flatMap((item) => Object.keys(item || {}))))
+    .filter((key) => items.some((item) => {
+      const value = item?.[key]
+      return value !== null && value !== undefined && value !== ''
+    }))
+    .slice(0, 6)
+
+  if (!keys.length) return null
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="max-h-[520px] overflow-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="sticky top-0 bg-gray-50">
+            <tr>
+              {keys.map((key) => (
+                <th key={key} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {titleize(key)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {items.map((item, index) => (
+              <tr key={index} className="align-top">
+                {keys.map((key) => (
+                  <td key={key} className="max-w-[320px] px-3 py-3 text-sm leading-relaxed text-gray-800">
+                    {isPlainObject(item[key]) || Array.isArray(item[key]) ? (
+                      <ValueBlock value={item[key]} />
+                    ) : (
+                      compactText(item[key])
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function ListSection({ title, items }) {
   if (!Array.isArray(items) || items.length === 0) return null
+  const objectItems = items.filter((item) => isPlainObject(item))
+  const canUseTable = objectItems.length === items.length && objectItems.length > 1
+
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
       <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{title}</h4>
+      {canUseTable ? (
+        <ObjectTable items={objectItems} />
+      ) : (
       <div className="space-y-3">
         {items.map((item, index) => (
           <div key={`${title}-${index}`} className="rounded-lg bg-gray-50 p-3">
@@ -182,6 +264,43 @@ function ListSection({ title, items }) {
           </div>
         ))}
       </div>
+      )}
+    </section>
+  )
+}
+
+function StructuredSection({ title, value }) {
+  if (value === null || value === undefined || value === '') return null
+  if (Array.isArray(value)) return <ListSection title={title} items={value} />
+
+  if (isPlainObject(value)) {
+    const entries = Object.entries(value).filter(([, item]) => item !== null && item !== undefined && item !== '')
+    if (!entries.length) return null
+    return (
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{title}</h4>
+        <div className="space-y-4">
+          {entries.map(([key, item]) => (
+            <div key={key}>
+              <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-indigo-600">{titleize(key)}</h5>
+              {Array.isArray(item) ? (
+                item.every((row) => isPlainObject(row)) ? <ObjectTable items={item} /> : <ValueBlock value={item} />
+              ) : (
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <ValueBlock value={item} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{title}</h4>
+      <ValueBlock value={value} />
     </section>
   )
 }
@@ -321,13 +440,13 @@ export default function AIResultReport({ response }) {
           </section>
         )}
 
-        <ListSection title="Findings" items={findings} />
-        <ListSection title="Anomalies" items={anomalies} />
-        <ListSection title="Recommendations" items={recommendations} />
-        <ListSection title="Risks" items={Array.isArray(risks) ? risks : risks ? [risks] : []} />
-        <ListSection title="Next Actions" items={nextActions} />
-        <ListSection title="Assumptions" items={assumptions} />
-        <ListSection title="Follow-up Questions" items={followUps} />
+        <StructuredSection title="Findings" value={findings} />
+        <StructuredSection title="Anomalies" value={anomalies} />
+        <StructuredSection title="Recommendations" value={recommendations} />
+        <StructuredSection title="Risks" value={risks} />
+        <StructuredSection title="Next Actions" value={nextActions} />
+        <StructuredSection title="Assumptions" value={assumptions} />
+        <StructuredSection title="Follow-up Questions" value={followUps} />
         <FieldGrid result={result} hiddenKeys={hiddenKeys} />
         <ArraySections result={result} hiddenKeys={hiddenKeys} />
         <ObjectSections result={result} hiddenKeys={hiddenKeys} />

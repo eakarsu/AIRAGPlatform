@@ -1,32 +1,40 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getDocument, updateDocument, deleteDocument, getKnowledgeChunks } from '../api/client'
+import { getDocument, updateDocument, deleteDocument, getKnowledgeChunks, getDocumentEvents, reindexDocument } from '../api/client'
 import toast from 'react-hot-toast'
-import { HiArrowLeft, HiPencil, HiTrash, HiSave, HiX } from 'react-icons/hi'
+import { HiArrowLeft, HiPencil, HiTrash, HiSave, HiX, HiRefresh } from 'react-icons/hi'
 
 export default function DocumentDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [doc, setDoc] = useState(null)
   const [chunks, setChunks] = useState([])
+  const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [reindexing, setReindexing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editContent, setEditContent] = useState('')
 
-  useEffect(() => {
+  const loadDocument = () => {
     Promise.all([
       getDocument(id),
       getKnowledgeChunks(id),
-    ]).then(([docRes, chunksRes]) => {
+      getDocumentEvents(id),
+    ]).then(([docRes, chunksRes, eventsRes]) => {
       setDoc(docRes.data)
       setChunks(chunksRes.data)
+      setEvents(eventsRes.data || [])
       setEditTitle(docRes.data.title)
       setEditContent(docRes.data.content || '')
     }).catch(() => {
       toast.error('Document not found')
       navigate('/documents')
     }).finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadDocument()
   }, [id])
 
   const handleSave = async () => {
@@ -34,9 +42,26 @@ export default function DocumentDetail() {
       const res = await updateDocument(id, { title: editTitle, content: editContent })
       setDoc(res.data)
       setEditing(false)
+      getDocumentEvents(id).then((eventsRes) => setEvents(eventsRes.data || [])).catch(() => {})
       toast.success('Document updated')
     } catch {
       toast.error('Failed to update')
+    }
+  }
+
+  const handleReindex = async () => {
+    setReindexing(true)
+    try {
+      const res = await reindexDocument(id)
+      setDoc(res.data)
+      const [chunksRes, eventsRes] = await Promise.all([getKnowledgeChunks(id), getDocumentEvents(id)])
+      setChunks(chunksRes.data)
+      setEvents(eventsRes.data || [])
+      toast.success('Document reindexed')
+    } catch {
+      toast.error('Failed to reindex document')
+    } finally {
+      setReindexing(false)
     }
   }
 
@@ -97,6 +122,9 @@ export default function DocumentDetail() {
             </>
           ) : (
             <>
+              <button onClick={handleReindex} disabled={reindexing} className="btn-secondary flex items-center gap-1 disabled:opacity-50">
+                <HiRefresh className={`w-4 h-4 ${reindexing ? 'animate-spin' : ''}`} /> Reindex
+              </button>
               <button onClick={() => setEditing(true)} className="btn-secondary flex items-center gap-1">
                 <HiPencil className="w-4 h-4" /> Edit
               </button>
@@ -170,6 +198,38 @@ export default function DocumentDetail() {
                   <span className="text-xs text-gray-400">{chunk.tokens} tokens</span>
                 </div>
                 <p className="text-sm text-gray-700 line-clamp-3">{chunk.chunk_text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card mt-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Document Activity</h2>
+        {events.length === 0 ? (
+          <p className="text-gray-500 text-sm">No activity recorded for this document yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {events.map((event) => (
+              <div key={event.id} className="flex gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <div className="mt-1 h-2.5 w-2.5 rounded-full bg-indigo-500" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold capitalize text-gray-900">{event.event_type}</span>
+                    {event.user_name && <span className="text-xs text-gray-500">by {event.user_name}</span>}
+                    <span className="text-xs text-gray-400">{new Date(event.created_at).toLocaleString()}</span>
+                  </div>
+                  {event.metadata && Object.keys(event.metadata).length > 0 && (
+                    <div className="mt-2 grid gap-2 md:grid-cols-2">
+                      {Object.entries(event.metadata).map(([key, value]) => (
+                        <div key={key} className="rounded-md bg-white px-3 py-2 text-xs">
+                          <span className="font-semibold uppercase tracking-wide text-gray-500">{key.replace(/_/g, ' ')}</span>
+                          <span className="ml-2 text-gray-800">{Array.isArray(value) ? value.join(', ') : String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

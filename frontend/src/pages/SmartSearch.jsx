@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { smartSearch } from '../api/client'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -10,6 +10,18 @@ export default function SmartSearch() {
   const [results, setResults] = useState(null)
   const [searching, setSearching] = useState(false)
   const [selectedResult, setSelectedResult] = useState(null)
+  const [scopeLabel, setScopeLabel] = useState('All accessible documents')
+
+  useEffect(() => {
+    const updateScope = () => {
+      const id = localStorage.getItem('activeWorkspaceId')
+      const name = localStorage.getItem('activeWorkspaceName')
+      setScopeLabel(id ? (name || `Workspace ${id}`) : 'All accessible documents')
+    }
+    updateScope()
+    window.addEventListener('active-workspace-changed', updateScope)
+    return () => window.removeEventListener('active-workspace-changed', updateScope)
+  }, [])
 
   const handleSearch = async () => {
     if (!query.trim()) { toast.error('Enter a search query'); return }
@@ -30,6 +42,7 @@ export default function SmartSearch() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Smart Search</h1>
         <p className="text-gray-500 text-sm mt-1">Semantic search across all your documents with AI-powered answers</p>
+        <p className="mt-1 text-xs font-medium text-indigo-600">Retrieval scope: {scopeLabel}</p>
       </div>
 
       {/* Search Bar */}

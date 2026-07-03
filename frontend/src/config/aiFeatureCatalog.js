@@ -205,7 +205,7 @@ export const aiFeatureCatalog = [
   ...gapFeatures.map(([title, path, endpoint, category, icon, description, presetDefs]) => ({
     title,
     path,
-    endpoint,
+    endpoint: endpoint.endsWith('/') ? endpoint : `${endpoint}/`,
     type: 'Gap Tool',
     category,
     icon,

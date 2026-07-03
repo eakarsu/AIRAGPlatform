@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import AIResultReport from './AIResultReport'
+import { apiUrl } from '../api/url'
 
 export default function AIFeatureTool({ feature, embedded = false }) {
   const [input, setInput] = useState(feature?.presets?.[0]?.value || '')
@@ -30,7 +31,7 @@ export default function AIFeatureTool({ feature, embedded = false }) {
     setOutput(null)
     try {
       const token = (typeof localStorage !== 'undefined' && localStorage.getItem('token')) || ''
-      const res = await fetch(feature.endpoint, {
+      const res = await fetch(apiUrl(feature.endpoint), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

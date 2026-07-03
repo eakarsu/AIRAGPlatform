@@ -3,7 +3,10 @@ import os
 import json
 import urllib.request
 import urllib.error
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy.orm import Session
+from database import get_db
+from services.ai_output import normalized_ai_output, record_ai_activity
 from config import settings
 
 router = APIRouter(prefix="/api/gap-no-explicit-embed-ingestion-route-exposed", tags=["gap-no-explicit-embed-ingestion-route-exposed"])
@@ -65,7 +68,7 @@ def _call_llm(prompt: str):
         raise RuntimeError(f"LLM {e.code}: {msg}")
     choices = data.get("choices") or []
     content = choices[0]["message"]["content"] if choices and "message" in choices[0] else data
-    return {"model": data.get("model"), "content": content}
+    return normalized_ai_output(data.get("model"), content)
 
 
 @router.get("/")
@@ -74,7 +77,7 @@ def get_info():
 
 
 @router.post("/")
-async def run(request: Request):
+async def run(request: Request, db: Session = Depends(get_db)):
     try:
         body = await request.json()
     except Exception:
@@ -83,6 +86,8 @@ async def run(request: Request):
     prompt = f"Feature: {FEATURE_TITLE}\nProject: {PROJECT}\nUser input:\n{user_input if isinstance(user_input, str) else json.dumps(user_input)}"
     try:
         output = _call_llm(prompt)
+        record_ai_activity(db, FEATURE_SLUG, FEATURE_TITLE, user_input, ok=True)
         return {"ok": True, "slug": FEATURE_SLUG, "title": FEATURE_TITLE, "output": output}
     except Exception as e:
+        record_ai_activity(db, FEATURE_SLUG, FEATURE_TITLE, user_input, ok=False)
         return {"ok": False, "error": str(e)}

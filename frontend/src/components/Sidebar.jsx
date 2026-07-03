@@ -37,12 +37,29 @@ export default function Sidebar() {
     getWorkspaces()
       .then(res => {
         setWorkspaces(res.data || [])
-        if (res.data?.length > 0 && !activeWorkspace) {
-          setActiveWorkspace(res.data[0])
+        const storedId = localStorage.getItem('activeWorkspaceId')
+        const storedWorkspace = storedId ? res.data?.find((ws) => String(ws.id) === String(storedId)) : null
+        if (storedWorkspace) {
+          setActiveWorkspace(storedWorkspace)
+        } else if (!storedId) {
+          setActiveWorkspace(null)
         }
       })
       .catch(() => {})
   }, [])
+
+  const selectWorkspace = (workspace) => {
+    setActiveWorkspace(workspace)
+    if (workspace?.id) {
+      localStorage.setItem('activeWorkspaceId', workspace.id)
+      localStorage.setItem('activeWorkspaceName', workspace.name)
+    } else {
+      localStorage.removeItem('activeWorkspaceId')
+      localStorage.removeItem('activeWorkspaceName')
+    }
+    window.dispatchEvent(new CustomEvent('active-workspace-changed', { detail: workspace }))
+    setShowWsDropdown(false)
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -76,7 +93,7 @@ export default function Sidebar() {
               {activeWorkspace?.name?.[0]?.toUpperCase() || 'W'}
             </div>
             <span className="flex-1 text-left text-gray-700 truncate font-medium text-xs">
-              {activeWorkspace?.name || 'Select Workspace'}
+              {activeWorkspace?.name || 'All accessible documents'}
             </span>
             <HiChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
           </button>
@@ -85,13 +102,19 @@ export default function Sidebar() {
               {workspaces.map(ws => (
                 <button
                   key={ws.id}
-                  onClick={() => { setActiveWorkspace(ws); setShowWsDropdown(false) }}
+                  onClick={() => selectWorkspace(ws)}
                   className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${activeWorkspace?.id === ws.id ? 'text-indigo-700 bg-indigo-50' : 'text-gray-700'}`}
                 >
                   {ws.name}
                   <span className="text-gray-400 ml-1">({ws.member_count} members)</span>
                 </button>
               ))}
+              <button
+                onClick={() => selectWorkspace(null)}
+                className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${!activeWorkspace ? 'text-indigo-700 bg-indigo-50' : 'text-gray-700'}`}
+              >
+                All accessible documents
+              </button>
               <button
                 onClick={() => { navigate('/workspaces'); setShowWsDropdown(false) }}
                 className="w-full text-left px-3 py-2 text-xs text-indigo-600 hover:bg-indigo-50 border-t border-gray-100 transition-colors"

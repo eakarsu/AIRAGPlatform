@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from database import get_db
 from models.database_models import ChatSession, ChatMessage, Document, KnowledgeChunk, User
@@ -11,6 +11,7 @@ from models.schemas import (
 from services.embedding_service import embed_query
 from services import vector_store, llm_service
 from routers.auth import get_current_user
+from services.workspace_access import can_access_document, document_scope_filter, normalize_workspace_id
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -39,7 +40,9 @@ def send_message(
     data: ChatRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    active_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
 ):
+    workspace_id = normalize_workspace_id(data.workspace_id if data.workspace_id is not None else active_workspace_id)
     # Get or create session
     if data.session_id:
         session = db.query(ChatSession).filter(ChatSession.id == data.session_id).first()
@@ -66,7 +69,7 @@ def send_message(
     sources = []
     try:
         query_embedding = embed_query(data.message)
-        results = vector_store.query(query_embedding, top_k=5)
+        results = vector_store.query(query_embedding, top_k=15)
 
         if results["documents"] and results["documents"][0]:
             for i, doc_text in enumerate(results["documents"][0]):
@@ -75,6 +78,8 @@ def send_message(
 
                 doc_id = meta.get("document_id")
                 doc = db.query(Document).filter(Document.id == doc_id).first() if doc_id else None
+                if not can_access_document(db, current_user, doc, workspace_id):
+                    continue
 
                 context_chunks.append(doc_text)
                 sources.append({
@@ -83,8 +88,28 @@ def send_message(
                     "chunk_preview": doc_text[:150] + "..." if len(doc_text) > 150 else doc_text,
                     "relevance_score": round(1 - distance, 3) if distance else 0,
                 })
+                if len(context_chunks) >= 5:
+                    break
     except Exception:
         pass  # Proceed without context if vector search fails
+
+    if not context_chunks:
+        query_words = [word for word in data.message.strip().split() if len(word) >= 3][:5]
+        if query_words:
+            chunks_query = db.query(KnowledgeChunk).join(
+                Document, Document.id == KnowledgeChunk.document_id
+            ).filter(document_scope_filter(db, current_user, workspace_id))
+            conditions = [KnowledgeChunk.chunk_text.ilike(f"%{word}%") for word in query_words]
+            chunks = chunks_query.filter(or_(*conditions)).limit(5).all()
+            for chunk in chunks:
+                doc = db.query(Document).filter(Document.id == chunk.document_id).first()
+                context_chunks.append(chunk.chunk_text)
+                sources.append({
+                    "document_id": chunk.document_id,
+                    "document_title": doc.title if doc else "Unknown",
+                    "chunk_preview": chunk.chunk_text[:150] + "..." if len(chunk.chunk_text) > 150 else chunk.chunk_text,
+                    "relevance_score": 0.5,
+                })
 
     # Get conversation history
     history = db.query(ChatMessage).filter(

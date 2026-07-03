@@ -43,6 +43,7 @@ class DocumentCreate(BaseModel):
 class DocumentUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
+    workspace_id: Optional[int] = None
 
 
 class DocumentResponse(BaseModel):
@@ -54,9 +55,23 @@ class DocumentResponse(BaseModel):
     file_size: int
     status: str
     user_id: Optional[int] = None
+    workspace_id: Optional[int] = None
+    workspace_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     chunk_count: Optional[int] = 0
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentEventResponse(BaseModel):
+    id: int
+    document_id: int
+    user_id: Optional[int] = None
+    user_name: Optional[str] = None
+    event_type: str
+    metadata: Optional[dict] = None
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -65,6 +80,7 @@ class DocumentResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[int] = None
+    workspace_id: Optional[int] = None
 
 
 class ChatMessageResponse(BaseModel):
@@ -154,6 +170,7 @@ class AISummaryResponse(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
+    workspace_id: Optional[int] = None
 
 
 class SearchResult(BaseModel):

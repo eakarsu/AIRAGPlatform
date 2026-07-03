@@ -34,10 +34,12 @@ class Document(Base):
     file_size = Column(Integer, default=0)
     status = Column(String(50), default="processed")
     user_id = Column(Integer, ForeignKey("users.id"))
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="documents")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
     chunks = relationship("KnowledgeChunk", back_populates="document", cascade="all, delete-orphan")
     summaries = relationship("AISummary", back_populates="document", cascade="all, delete-orphan")
 
@@ -203,3 +205,28 @@ class DocumentEvent(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     document = relationship("Document")
+
+
+class RetrievalRule(Base):
+    __tablename__ = "retrieval_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True)
+    chunk_size = Column(Integer, default=512)
+    top_k = Column(Integer, default=5)
+    reranking = Column(String(50), default="none")
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class CustomPromptTemplate(Base):
+    __tablename__ = "custom_prompt_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True)
+    system_prompt = Column(Text, nullable=False)
+    user_template = Column(Text, nullable=False)
+    retrieval_k = Column(Integer, default=5)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

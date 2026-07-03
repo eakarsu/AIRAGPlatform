@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getDocuments, deleteDocument, uploadDocument, updateDocument } from '../api/client'
+import { getDocuments, deleteDocument, updateDocument, getWorkspaces } from '../api/client'
 import toast from 'react-hot-toast'
 import { HiPlus, HiTrash, HiPencil, HiX, HiUpload, HiDocument } from 'react-icons/hi'
 import DocumentUpload from '../components/DocumentUpload'
@@ -12,17 +12,23 @@ export default function Documents() {
   const [selectedDoc, setSelectedDoc] = useState(null)
   const [editDoc, setEditDoc] = useState(null)
   const [editTitle, setEditTitle] = useState('')
+  const [workspaces, setWorkspaces] = useState([])
+  const [workspaceFilter, setWorkspaceFilter] = useState('')
   const navigate = useNavigate()
 
   const fetchDocs = () => {
     setLoading(true)
-    getDocuments()
+    getDocuments(workspaceFilter)
       .then(res => setDocs(res.data))
       .catch(() => toast.error('Failed to load documents'))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { fetchDocs() }, [])
+  useEffect(() => {
+    getWorkspaces().then(res => setWorkspaces(res.data || [])).catch(() => {})
+  }, [])
+
+  useEffect(() => { fetchDocs() }, [workspaceFilter])
 
   const handleDelete = async (e, id) => {
     e.stopPropagation()
@@ -74,9 +80,21 @@ export default function Documents() {
           <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
           <p className="text-gray-500 text-sm mt-1">{docs.length} documents in your library</p>
         </div>
-        <button onClick={() => setShowUpload(true)} className="btn-primary flex items-center gap-2">
-          <HiPlus className="w-5 h-5" /> Upload Document
-        </button>
+        <div className="flex items-center gap-3">
+          <select
+            value={workspaceFilter}
+            onChange={(e) => setWorkspaceFilter(e.target.value)}
+            className="input-field min-w-[220px]"
+          >
+            <option value="">All accessible documents</option>
+            {workspaces.map((workspace) => (
+              <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+            ))}
+          </select>
+          <button onClick={() => setShowUpload(true)} className="btn-primary flex items-center gap-2">
+            <HiPlus className="w-5 h-5" /> Upload Document
+          </button>
+        </div>
       </div>
 
       {/* Upload Modal */}
@@ -89,7 +107,7 @@ export default function Documents() {
                 <HiX className="w-5 h-5" />
               </button>
             </div>
-            <DocumentUpload onComplete={handleUploadComplete} />
+            <DocumentUpload onComplete={handleUploadComplete} workspaces={workspaces} workspaceId={workspaceFilter} />
           </div>
         </div>
       )}
@@ -154,6 +172,7 @@ export default function Documents() {
                     </span>
                     <span className="text-xs text-gray-400">{(doc.file_size / 1024).toFixed(1)} KB</span>
                     <span className="text-xs text-gray-400">{doc.chunk_count} chunks</span>
+                    {doc.workspace_name && <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{doc.workspace_name}</span>}
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                       doc.status === 'processed' ? 'bg-green-100 text-green-700' :
                       doc.status === 'processing' ? 'bg-yellow-100 text-yellow-700' :

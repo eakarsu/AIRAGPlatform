@@ -1,7 +1,8 @@
 import axios from 'axios'
+import { API_BASE_URL } from './url'
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -12,6 +13,10 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  const activeWorkspaceId = localStorage.getItem('activeWorkspaceId')
+  if (activeWorkspaceId) {
+    config.headers['X-Workspace-ID'] = activeWorkspaceId
   }
   return config
 })
@@ -34,7 +39,7 @@ export const login = (data) => api.post('/auth/login', data)
 export const register = (data) => api.post('/auth/register', data)
 
 // Documents
-export const getDocuments = () => api.get('/documents/')
+export const getDocuments = (workspaceId) => api.get('/documents/', { params: workspaceId ? { workspace_id: workspaceId } : {} })
 export const getDocument = (id) => api.get(`/documents/${id}`)
 export const uploadDocument = (formData) =>
   api.post('/documents/upload', formData, {
@@ -42,6 +47,8 @@ export const uploadDocument = (formData) =>
   })
 export const updateDocument = (id, data) => api.put(`/documents/${id}`, data)
 export const deleteDocument = (id) => api.delete(`/documents/${id}`)
+export const getDocumentEvents = (id) => api.get(`/documents/${id}/events`)
+export const reindexDocument = (id) => api.post(`/documents/${id}/reindex`)
 
 // Chat
 export const sendMessage = (data) => api.post('/chat/', data)

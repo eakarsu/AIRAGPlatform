@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models.database_models import Document, AISummary, KnowledgeChunk
+from models.database_models import Document, AISummary, KnowledgeChunk, User
 from models.schemas import (
     AISummaryResponse, AISummaryCreate, AISummaryUpdate,
     SearchRequest, SearchResponse, SearchResult,
@@ -12,6 +12,8 @@ from models.database_models import ChatSession, ChatMessage
 from services import llm_service, vector_store
 from services.embedding_service import embed_query
 from sqlalchemy import func
+from routers.auth import get_optional_user
+from services.workspace_access import can_access_document, document_scope_filter, normalize_workspace_id
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
@@ -31,24 +33,46 @@ def summary_to_response(s: AISummary, db: Session) -> dict:
 
 
 @router.get("/summaries", response_model=list[AISummaryResponse])
-def list_summaries(db: Session = Depends(get_db)):
-    summaries = db.query(AISummary).order_by(AISummary.created_at.desc()).all()
+def list_summaries(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_optional_user),
+    active_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+):
+    workspace_id = normalize_workspace_id(active_workspace_id)
+    summaries = db.query(AISummary).join(Document, Document.id == AISummary.document_id).filter(
+        document_scope_filter(db, current_user, workspace_id)
+    ).order_by(AISummary.created_at.desc()).all()
     return [AISummaryResponse(**summary_to_response(s, db)) for s in summaries]
 
 
 @router.get("/summaries/{summary_id}", response_model=AISummaryResponse)
-def get_summary(summary_id: int, db: Session = Depends(get_db)):
+def get_summary(
+    summary_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_optional_user),
+    active_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+):
     s = db.query(AISummary).filter(AISummary.id == summary_id).first()
     if not s:
         raise HTTPException(status_code=404, detail="Summary not found")
+    doc = db.query(Document).filter(Document.id == s.document_id).first()
+    if not can_access_document(db, current_user, doc, normalize_workspace_id(active_workspace_id)):
+        raise HTTPException(status_code=403, detail="You do not have access to this summary")
     return AISummaryResponse(**summary_to_response(s, db))
 
 
 @router.post("/summaries", response_model=AISummaryResponse)
-def create_summary(data: AISummaryCreate, db: Session = Depends(get_db)):
+def create_summary(
+    data: AISummaryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_optional_user),
+    active_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+):
     doc = db.query(Document).filter(Document.id == data.document_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    if not can_access_document(db, current_user, doc, normalize_workspace_id(active_workspace_id)):
+        raise HTTPException(status_code=403, detail="You do not have access to this document")
 
     if not doc.content:
         raise HTTPException(status_code=400, detail="Document has no content to summarize")
@@ -71,10 +95,19 @@ def create_summary(data: AISummaryCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/summaries/{summary_id}", response_model=AISummaryResponse)
-def update_summary(summary_id: int, data: AISummaryUpdate, db: Session = Depends(get_db)):
+def update_summary(
+    summary_id: int,
+    data: AISummaryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_optional_user),
+    active_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+):
     s = db.query(AISummary).filter(AISummary.id == summary_id).first()
     if not s:
         raise HTTPException(status_code=404, detail="Summary not found")
+    doc = db.query(Document).filter(Document.id == s.document_id).first()
+    if not can_access_document(db, current_user, doc, normalize_workspace_id(active_workspace_id)):
+        raise HTTPException(status_code=403, detail="You do not have access to this summary")
 
     if data.title is not None:
         s.title = data.title
@@ -87,10 +120,18 @@ def update_summary(summary_id: int, data: AISummaryUpdate, db: Session = Depends
 
 
 @router.delete("/summaries/{summary_id}")
-def delete_summary(summary_id: int, db: Session = Depends(get_db)):
+def delete_summary(
+    summary_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_optional_user),
+    active_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+):
     s = db.query(AISummary).filter(AISummary.id == summary_id).first()
     if not s:
         raise HTTPException(status_code=404, detail="Summary not found")
+    doc = db.query(Document).filter(Document.id == s.document_id).first()
+    if not can_access_document(db, current_user, doc, normalize_workspace_id(active_workspace_id)):
+        raise HTTPException(status_code=403, detail="You do not have access to this summary")
     db.delete(s)
     db.commit()
     return {"message": "Summary deleted successfully"}
@@ -98,13 +139,19 @@ def delete_summary(summary_id: int, db: Session = Depends(get_db)):
 
 # --- Smart Search ---
 @router.post("/search", response_model=SearchResponse)
-def smart_search(data: SearchRequest, db: Session = Depends(get_db)):
+def smart_search(
+    data: SearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_optional_user),
+    active_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+):
     results = []
+    workspace_id = normalize_workspace_id(data.workspace_id if data.workspace_id is not None else active_workspace_id)
 
     # Try vector search first
     try:
         query_embedding = embed_query(data.query)
-        vector_results = vector_store.query(query_embedding, top_k=data.top_k)
+        vector_results = vector_store.query(query_embedding, top_k=max(data.top_k * 3, data.top_k))
 
         if vector_results["documents"] and vector_results["documents"][0]:
             for i, doc_text in enumerate(vector_results["documents"][0]):
@@ -114,6 +161,8 @@ def smart_search(data: SearchRequest, db: Session = Depends(get_db)):
                 doc_id = meta.get("document_id", 0)
                 chunk_id = meta.get("chunk_id", 0)
                 doc = db.query(Document).filter(Document.id == doc_id).first()
+                if not can_access_document(db, current_user, doc, workspace_id):
+                    continue
 
                 results.append(SearchResult(
                     chunk_text=doc_text,
@@ -122,6 +171,8 @@ def smart_search(data: SearchRequest, db: Session = Depends(get_db)):
                     chunk_id=chunk_id,
                     score=round(1 - distance, 3) if distance else 0,
                 ))
+                if len(results) >= data.top_k:
+                    break
     except Exception:
         pass
 
@@ -131,7 +182,7 @@ def smart_search(data: SearchRequest, db: Session = Depends(get_db)):
         query_words = data.query.strip().split()
         chunks_query = db.query(KnowledgeChunk).join(
             Document, Document.id == KnowledgeChunk.document_id
-        )
+        ).filter(document_scope_filter(db, current_user, workspace_id))
         for word in query_words[:5]:
             chunks_query = chunks_query.filter(
                 KnowledgeChunk.chunk_text.ilike(f"%{word}%")
@@ -144,7 +195,7 @@ def smart_search(data: SearchRequest, db: Session = Depends(get_db)):
             conditions = [KnowledgeChunk.chunk_text.ilike(f"%{w}%") for w in query_words[:5]]
             chunks = db.query(KnowledgeChunk).join(
                 Document, Document.id == KnowledgeChunk.document_id
-            ).filter(or_(*conditions)).limit(data.top_k).all()
+            ).filter(document_scope_filter(db, current_user, workspace_id)).filter(or_(*conditions)).limit(data.top_k).all()
 
         for chunk in chunks:
             doc = db.query(Document).filter(Document.id == chunk.document_id).first()

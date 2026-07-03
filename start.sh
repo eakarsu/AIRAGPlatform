@@ -39,8 +39,13 @@ wait_for_url() {
     local name=$1
     local url=$2
     local attempts=${3:-60}
+    local pid=${4:-}
     echo -e "  Waiting for $name: $url"
     for ((i=1; i<=attempts; i++)); do
+        if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+            echo -e "${RED}  $name process exited before becoming ready.${NC}"
+            return 1
+        fi
         if curl -fsS "$url" >/dev/null 2>&1; then
             echo -e "${GREEN}  $name is ready.${NC}"
             return 0
@@ -120,7 +125,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8050 &
 BACKEND_PID=$!
 cd "$PROJECT_DIR"
 
-wait_for_url "Backend" "http://localhost:8050/api/health" 90 || {
+wait_for_url "Backend" "http://localhost:8050/api/health" 90 "$BACKEND_PID" || {
     echo -e "${RED}  Backend failed to start. Stop and inspect the log above.${NC}"
     kill $BACKEND_PID 2>/dev/null
     exit 1
@@ -147,7 +152,7 @@ npm run dev &
 FRONTEND_PID=$!
 cd "$PROJECT_DIR"
 
-wait_for_url "Frontend" "http://localhost:3056" 60 || {
+wait_for_url "Frontend" "http://localhost:3056" 60 "$FRONTEND_PID" || {
     echo -e "${RED}  Frontend failed to start. Stop and inspect the log above.${NC}"
     kill $BACKEND_PID 2>/dev/null
     kill $FRONTEND_PID 2>/dev/null
@@ -187,5 +192,15 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
-# Wait for any background process to exit
-wait
+# Keep the script attached to both dev processes and fail visibly if either exits.
+while true; do
+    if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+        echo -e "${RED}Backend process exited.${NC}"
+        cleanup
+    fi
+    if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+        echo -e "${RED}Frontend process exited.${NC}"
+        cleanup
+    fi
+    sleep 2
+done

@@ -16,6 +16,7 @@ export default function AISummary() {
   const [editText, setEditText] = useState('')
   const [newDocId, setNewDocId] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [scopeLabel, setScopeLabel] = useState('All accessible documents')
 
   const fetchData = () => {
     setLoading(true)
@@ -30,6 +31,18 @@ export default function AISummary() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  useEffect(() => {
+    const updateScope = () => {
+      const id = localStorage.getItem('activeWorkspaceId')
+      const name = localStorage.getItem('activeWorkspaceName')
+      setScopeLabel(id ? (name || `Workspace ${id}`) : 'All accessible documents')
+      fetchData()
+    }
+    updateScope()
+    window.addEventListener('active-workspace-changed', updateScope)
+    return () => window.removeEventListener('active-workspace-changed', updateScope)
+  }, [])
 
   const handleGenerate = async () => {
     if (!newDocId) { toast.error('Select a document'); return }
@@ -84,6 +97,7 @@ export default function AISummary() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">AI Summaries</h1>
           <p className="text-gray-500 text-sm mt-1">{summaries.length} summaries generated</p>
+          <p className="mt-1 text-xs font-medium text-indigo-600">Scope: {scopeLabel}</p>
         </div>
         <button onClick={() => setShowNew(true)} className="btn-primary flex items-center gap-2">
           <HiPlus className="w-5 h-5" /> Generate Summary

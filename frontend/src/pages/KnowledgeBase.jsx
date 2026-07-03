@@ -13,6 +13,7 @@ export default function KnowledgeBase() {
   const [filterDocId, setFilterDocId] = useState('')
   const [newChunk, setNewChunk] = useState({ document_id: '', chunk_text: '', chunk_index: 0 })
   const [editText, setEditText] = useState('')
+  const [scopeLabel, setScopeLabel] = useState('All accessible documents')
 
   const fetchData = () => {
     setLoading(true)
@@ -27,6 +28,19 @@ export default function KnowledgeBase() {
   }
 
   useEffect(() => { fetchData() }, [filterDocId])
+
+  useEffect(() => {
+    const updateScope = () => {
+      const id = localStorage.getItem('activeWorkspaceId')
+      const name = localStorage.getItem('activeWorkspaceName')
+      setScopeLabel(id ? (name || `Workspace ${id}`) : 'All accessible documents')
+      setFilterDocId('')
+      fetchData()
+    }
+    updateScope()
+    window.addEventListener('active-workspace-changed', updateScope)
+    return () => window.removeEventListener('active-workspace-changed', updateScope)
+  }, [])
 
   const handleCreate = async () => {
     if (!newChunk.document_id || !newChunk.chunk_text.trim()) {
@@ -84,6 +98,7 @@ export default function KnowledgeBase() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Knowledge Base</h1>
           <p className="text-gray-500 text-sm mt-1">{chunks.length} knowledge chunks</p>
+          <p className="mt-1 text-xs font-medium text-indigo-600">Scope: {scopeLabel}</p>
         </div>
         <button onClick={() => setShowNew(true)} className="btn-primary flex items-center gap-2">
           <HiPlus className="w-5 h-5" /> New Chunk

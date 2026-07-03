@@ -12,6 +12,7 @@ export default function ChatSession() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [scopeLabel, setScopeLabel] = useState('All accessible documents')
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -27,6 +28,17 @@ export default function ChatSession() {
       navigate('/chat')
     })
   }, [id])
+
+  useEffect(() => {
+    const updateScope = () => {
+      const id = localStorage.getItem('activeWorkspaceId')
+      const name = localStorage.getItem('activeWorkspaceName')
+      setScopeLabel(id ? (name || `Workspace ${id}`) : 'All accessible documents')
+    }
+    updateScope()
+    window.addEventListener('active-workspace-changed', updateScope)
+    return () => window.removeEventListener('active-workspace-changed', updateScope)
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -73,7 +85,7 @@ export default function ChatSession() {
         </button>
         <div>
           <h1 className="text-lg font-semibold text-gray-900">{session?.title || 'Chat'}</h1>
-          <p className="text-xs text-gray-500">{messages.length} messages</p>
+          <p className="text-xs text-gray-500">{messages.length} messages · Scope: {scopeLabel}</p>
         </div>
       </div>
 

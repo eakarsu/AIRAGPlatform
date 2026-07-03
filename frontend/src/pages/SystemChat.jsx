@@ -8,12 +8,14 @@ import AIResultReport from '../components/AIResultReport'
 const quickPrompts = [
   'Show connector status',
   'Search documents for retention policy',
+  'List knowledge chunks',
+  'Create prompt Risk Review: Identify material risks and recommended mitigations',
+  'Favorite document 1',
+  'List chat sessions',
+  'List retrieval rules',
   'Run sync check for Legal SharePoint Library',
   'Run citation validation for unsupported claims',
   'Show cost analytics',
-  'Create tag Customer Risk #ef4444',
-  'Summarize document 1',
-  'Open Platform Ops',
 ]
 
 function titleize(key) {
@@ -138,7 +140,7 @@ export default function SystemChat() {
     {
       id: 1,
       role: 'assistant',
-      content: 'Ask me to operate the app. I can list documents, search knowledge, summarize documents, create tags, run Platform Ops actions, run AI Hub analyses, show analytics, open pages, and inspect admin data.',
+      content: 'Ask me to operate the app. I can manage documents, knowledge chunks, summaries, tags, prompts, favorites, workspaces, users, chat sessions, retrieval rules, Platform Ops actions, AI Hub analyses, analytics, activity, and navigation.',
       action: 'ready',
       suggestions: quickPrompts.slice(0, 5),
     },
@@ -253,7 +255,7 @@ export default function SystemChat() {
               send()
             }
           }}
-          placeholder="Example: run sync check for Legal SharePoint Library, create tag Customer Risk, search documents for retention..."
+          placeholder="Example: create chunk for document 1: policy text, create prompt Risk Review: identify risks, favorite document 1..."
           className="min-h-[54px] flex-1 resize-none rounded-xl border border-gray-200 bg-white p-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
           disabled={sending}
         />
