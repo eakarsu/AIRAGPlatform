@@ -26,6 +26,8 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 
 
 def create_access_token(data: dict) -> str:
+    if len(settings.SECRET_KEY) < 32:
+        raise RuntimeError("SECRET_KEY must contain at least 32 characters")
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     to_encode.update({"exp": expire})
@@ -34,6 +36,8 @@ def create_access_token(data: dict) -> str:
 
 def verify_token(token: str) -> dict:
     try:
+        if len(settings.SECRET_KEY) < 32:
+            return None
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         return payload
     except JWTError:
@@ -89,7 +93,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    token = create_access_token({"user_id": user.id, "email": user.email})
+    token = create_access_token({"user_id": user.id, "email": user.email, "role": "reader", "tenantId": settings.GOVERNANCE_TENANT_ID, "subjectIds": [f"actor:user:{user.id}"]})
     return TokenResponse(
         access_token=token,
         user=UserResponse.model_validate(user),
@@ -102,7 +106,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     if not user or not verify_password(credentials.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token({"user_id": user.id, "email": user.email})
+    token = create_access_token({"user_id": user.id, "email": user.email, "role": "reader", "tenantId": settings.GOVERNANCE_TENANT_ID, "subjectIds": [f"actor:user:{user.id}"]})
     return TokenResponse(
         access_token=token,
         user=UserResponse.model_validate(user),
@@ -110,11 +114,5 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-def get_me(token: str = "", db: Session = Depends(get_db)):
-    user_id = get_current_user_id(token)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+def get_me(user: User = Depends(get_current_user)):
     return UserResponse.model_validate(user)

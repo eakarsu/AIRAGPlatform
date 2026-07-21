@@ -1,9 +1,10 @@
 """Seed database with sample data - 15+ items per feature."""
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 import bcrypt
 
-from database import SessionLocal, create_tables
+from database import SessionLocal
 from models.database_models import (
     User, Document, ChatSession, ChatMessage, KnowledgeChunk, AISummary,
     Tag, DocumentTag, PromptTemplate, ActivityLog, Favorite,
@@ -621,7 +622,10 @@ AI_SUMMARIES_DATA = [
 
 
 def seed():
-    create_tables()
+    if os.environ.get("ALLOW_DESTRUCTIVE_SEED") != "1":
+        raise RuntimeError("Set ALLOW_DESTRUCTIVE_SEED=1 only for an isolated demo database")
+    if len(os.environ.get("SEED_USER_PASSWORD", "")) < 12:
+        raise RuntimeError("SEED_USER_PASSWORD must contain at least 12 characters")
     db = SessionLocal()
     try:
         # Check if already seeded
@@ -635,7 +639,7 @@ def seed():
         # Create demo user
         demo_user = User(
             email="demo@airag.com",
-            password_hash=hash_password("demo123"),
+            password_hash=hash_password(os.environ["SEED_USER_PASSWORD"]),
             name="Demo User",
             role="admin",
             is_active=True,
@@ -643,7 +647,7 @@ def seed():
         db.add(demo_user)
         db.commit()
         db.refresh(demo_user)
-        print(f"  Created demo user: demo@airag.com / demo123")
+        print("  Created demo user; credentials were supplied through the environment")
 
         # Create additional users (15+ total) with roles
         users_data = [
@@ -666,7 +670,7 @@ def seed():
         for email, name, role in users_data:
             user = User(
                 email=email,
-                password_hash=hash_password("password123"),
+                password_hash=hash_password(os.environ["SEED_USER_PASSWORD"]),
                 name=name,
                 role=role,
                 is_active=True,
@@ -896,7 +900,7 @@ def seed():
         print(f"  Created {len(favorites_data)} favorites")
 
         print("\nSeeding complete!")
-        print(f"  Demo login: demo@airag.com / demo123")
+        print("  Demo credentials were supplied through the environment")
 
         # Build ChromaDB vector index from knowledge chunks
         print("\nBuilding vector search index...")
@@ -934,5 +938,4 @@ def seed():
 
 
 if __name__ == "__main__":
-    create_tables()
     seed()

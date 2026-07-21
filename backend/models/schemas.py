@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List
 
@@ -6,7 +6,7 @@ from typing import Optional, List
 # --- Auth ---
 class UserCreate(BaseModel):
     email: str
-    password: str
+    password: str = Field(min_length=12)
     name: str
     role: Optional[str] = "user"
     is_active: Optional[bool] = True
