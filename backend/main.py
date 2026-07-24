@@ -10,7 +10,6 @@ from routers import workspaces, analytics
 from routers import platform_ops
 from routers import system_chat
 from routers import governance
-from database import create_tables
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/hour"])
 
@@ -19,11 +18,6 @@ app = FastAPI(
     description="AI-powered document knowledge base with RAG",
     version="1.0.0",
 )
-
-
-@app.on_event("startup")
-def initialize_schema():
-    create_tables()
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

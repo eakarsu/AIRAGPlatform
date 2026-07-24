@@ -5,7 +5,7 @@ from config import settings
 
 def get_client() -> OpenAI:
     return OpenAI(
-        base_url="https://openrouter.ai/api/v1",
+        base_url=settings.OPENROUTER_BASE_URL,
         api_key=settings.OPENROUTER_API_KEY,
     )
 
