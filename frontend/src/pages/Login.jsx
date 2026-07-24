@@ -10,8 +10,8 @@ export default function Login() {
   const navigate = useNavigate()
 
   const handleDemoLogin = () => {
-    setEmail('demo@airag.com')
-    setPassword('demo123')
+    setEmail(import.meta.env.VITE_DEMO_EMAIL || '')
+    setPassword(import.meta.env.VITE_DEMO_PASSWORD || '')
   }
 
   const handleSubmit = async (e) => {

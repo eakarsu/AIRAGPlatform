@@ -4,7 +4,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 import bcrypt
 
-from database import SessionLocal
+from database import SessionLocal, create_tables
 from models.database_models import (
     User, Document, ChatSession, ChatMessage, KnowledgeChunk, AISummary,
     Tag, DocumentTag, PromptTemplate, ActivityLog, Favorite,
@@ -626,6 +626,7 @@ def seed():
         raise RuntimeError("Set ALLOW_DESTRUCTIVE_SEED=1 only for an isolated demo database")
     if len(os.environ.get("SEED_USER_PASSWORD", "")) < 12:
         raise RuntimeError("SEED_USER_PASSWORD must contain at least 12 characters")
+    create_tables()
     db = SessionLocal()
     try:
         # Check if already seeded
