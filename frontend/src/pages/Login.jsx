@@ -91,7 +91,7 @@ export default function Login() {
               onClick={handleDemoLogin}
               className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-3 rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all font-medium text-base"
             >
-              Use Demo Credentials
+              Auto Fill Demo Credentials
             </button>
             <p className="text-center text-xs text-gray-500 mt-3">
               demo@airag.com / demo123

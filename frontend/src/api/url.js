@@ -1,4 +1,7 @@
-const configuredApiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
+const rawConfiguredApiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
+const configuredApiUrl = rawConfiguredApiUrl && !rawConfiguredApiUrl.endsWith('/api')
+  ? `${rawConfiguredApiUrl}/api`
+  : rawConfiguredApiUrl
 
 export const API_BASE_URL = configuredApiUrl || (import.meta.env.DEV ? 'http://localhost:8050/api' : '/api')
 
