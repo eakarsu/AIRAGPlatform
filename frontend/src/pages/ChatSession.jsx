@@ -1,3 +1,4 @@
+import NativeAIControls from '../components/NativeAIControls';
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getChatSession, getChatMessages, sendMessage } from '../api/client'
@@ -123,11 +124,12 @@ export default function ChatSession() {
       </div>
 
       {/* Input */}
+      <NativeAIControls busy={sending} context="Document chat">
       <div className="flex-shrink-0 pt-4 border-t border-gray-200">
         <div className="flex gap-3">
           <input
             ref={inputRef}
-            value={input}
+            data-ai-field="message" value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder="Ask a question about your documents..."
@@ -146,6 +148,7 @@ export default function ChatSession() {
           AI responses are generated using your document knowledge base via OpenRouter
         </p>
       </div>
+      </NativeAIControls>
     </div>
   )
 }

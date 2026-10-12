@@ -197,7 +197,7 @@ function ObjectTable({ items }) {
       const value = item?.[key]
       return value !== null && value !== undefined && value !== ''
     }))
-    .slice(0, 6)
+
 
   if (!keys.length) return null
 

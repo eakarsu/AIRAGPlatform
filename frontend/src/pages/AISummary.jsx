@@ -1,3 +1,6 @@
+import NativeAIControls from '../components/NativeAIControls';
+import NativeAIReport, { reportText, reportValue } from '../components/NativeAIReport';
+import useNativeAIRequest from '../components/useNativeAIRequest';
 import { useEffect, useState } from 'react'
 import { getAISummaries, getDocuments, createAISummary, updateAISummary, deleteAISummary } from '../api/client'
 import ReactMarkdown from 'react-markdown'
@@ -6,6 +9,7 @@ import toast from 'react-hot-toast'
 import { HiPlus, HiTrash, HiPencil, HiX, HiClipboardList, HiChip, HiRefresh } from 'react-icons/hi'
 
 export default function AISummary() {
+  const nativeAIRequest=useNativeAIRequest();
   const [summaries, setSummaries] = useState([])
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -48,9 +52,9 @@ export default function AISummary() {
     if (!newDocId) { toast.error('Select a document'); return }
     setGenerating(true)
     try {
-      await createAISummary({ document_id: parseInt(newDocId) })
+      await nativeAIRequest.run(signal=>createAISummary({ document_id: parseInt(newDocId) },{signal}))
       toast.success('Summary generated!')
-      setShowNew(false)
+      (nativeAIRequest.cancel(),setGenerating(false),setShowNew(false))
       setNewDocId('')
       fetchData()
     } catch (err) {
@@ -110,9 +114,9 @@ export default function AISummary() {
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Generate AI Summary</h2>
-              <button onClick={() => setShowNew(false)} className="p-1 hover:bg-gray-100 rounded-lg"><HiX className="w-5 h-5" /></button>
+              <button onClick={() => (nativeAIRequest.cancel(),setGenerating(false),setShowNew(false))} className="p-1 hover:bg-gray-100 rounded-lg"><HiX className="w-5 h-5" /></button>
             </div>
-            <div className="mb-4">
+            <NativeAIControls busy={generating} onCancel={()=>{nativeAIRequest.cancel();setGenerating(false);}} context="Source document summary" presets={[0,1,2].map(index=>({name:['First document','Next document','Current document'][index],fill:()=>{const id=newDocId?newDocId:documents[index]?.id||documents[0]?.id;if(id)setNewDocId(String(id));return {filled:id?1:0,manual:id?[]:['Upload or select an actual accessible document']};}}))}><div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Select Document</label>
               <select
                 value={newDocId}
@@ -123,11 +127,11 @@ export default function AISummary() {
                 {documents.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
               </select>
             </div>
-            <p className="text-xs text-gray-500 mb-4">
+            </NativeAIControls><p className="text-xs text-gray-500 mb-4">
               The AI will analyze the document content and generate a comprehensive summary using OpenRouter.
             </p>
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setShowNew(false)} className="btn-secondary">Cancel</button>
+              <button onClick={() => (nativeAIRequest.cancel(),setGenerating(false),setShowNew(false))} className="btn-secondary">Cancel</button>
               <button onClick={handleGenerate} disabled={generating} className="btn-primary flex items-center gap-2">
                 {generating ? (
                   <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Generating...</>
@@ -176,9 +180,7 @@ export default function AISummary() {
             </div>
             <div className="px-6 py-4">
               <div className="prose text-sm">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {selectedSummary.summary}
-                </ReactMarkdown>
+                <NativeAIReport response={selectedSummary.summary} title={selectedSummary.title||'Document summary'}/>
               </div>
             </div>
             <div className="sticky bottom-0 bg-gray-50 border-t border-gray-100 px-6 py-3 flex items-center justify-between">
@@ -191,7 +193,7 @@ export default function AISummary() {
                 )}
                 <span>{new Date(selectedSummary.created_at).toLocaleString()}</span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2"><button type="button" onClick={()=>setSelectedSummary(null)} className="btn-secondary">Cancel</button>
                 <button onClick={(e) => { setSelectedSummary(null); handleEdit(e, selectedSummary) }} className="btn-secondary text-sm">
                   <HiPencil className="w-4 h-4 inline mr-1" /> Edit
                 </button>
@@ -239,7 +241,7 @@ export default function AISummary() {
                     {summary.model_used && <span className="text-xs text-gray-400">{summary.model_used.split('/').pop()}</span>}
                     <span className="text-xs text-gray-400">{new Date(summary.created_at).toLocaleDateString()}</span>
                   </div>
-                  <p className="text-sm text-gray-500 line-clamp-2">{summary.summary.replace(/[#*_]/g, '').slice(0, 200)}</p>
+                  <p className="text-sm text-gray-500 line-clamp-2">{reportText(reportValue(summary.summary)).replace(/[#*_]/g, '').slice(0, 200)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity ml-4">

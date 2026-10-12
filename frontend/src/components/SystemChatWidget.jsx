@@ -1,3 +1,4 @@
+import NativeAIReport, { reportValue } from './NativeAIReport'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -28,36 +29,7 @@ function formatValue(value) {
 }
 
 function CompactData({ data }) {
-  if (!data) return null
-  const rows = Array.isArray(data) ? data : Array.isArray(data.items) ? data.items : null
-  if (rows) {
-    return (
-      <div className="mt-3 rounded-lg border border-gray-200 bg-white">
-        <p className="border-b border-gray-100 px-3 py-2 text-xs font-semibold text-gray-500">{rows.length} records</p>
-        <div className="max-h-36 overflow-auto p-2">
-          {rows.slice(0, 5).map((row, index) => (
-            <div key={row.id || index} className="rounded-md bg-gray-50 p-2 text-xs text-gray-700">
-              <span className="font-semibold">{row.name || row.title || row.tenant || row.query_id || row.answer_id || `Record ${row.id || index + 1}`}</span>
-              {row.status && <span className="ml-2 text-gray-500">{row.status}</span>}
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-  if (typeof data === 'object') {
-    return (
-      <div className="mt-3 grid gap-2">
-        {Object.entries(data).slice(0, 5).map(([key, value]) => (
-          <div key={key} className="rounded-md bg-white p-2 text-xs">
-            <span className="font-semibold text-gray-500">{titleize(key)}: </span>
-            <span className="text-gray-800">{formatValue(value)}</span>
-          </div>
-        ))}
-      </div>
-    )
-  }
-  return <p className="mt-2 text-xs text-gray-600">{formatValue(data)}</p>
+  return data === null || data === undefined ? null : <NativeAIReport response={data} title="System chat results" />
 }
 
 export default function SystemChatWidget() {
@@ -131,7 +103,7 @@ export default function SystemChatWidget() {
               {quickPrompts.map((prompt) => (
                 <button
                   key={prompt}
-                  onClick={() => send(prompt)}
+                  onClick={() => setInput(prompt)}
                   className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
                 >
                   {prompt}

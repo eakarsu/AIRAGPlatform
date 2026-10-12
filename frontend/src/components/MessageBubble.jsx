@@ -1,3 +1,4 @@
+import NativeAIReport from './NativeAIReport'
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -40,9 +41,7 @@ export default function MessageBubble({ message }) {
           {/* Content */}
           <div className="px-5 py-4">
             <div className="prose text-sm text-gray-700">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {message.content}
-              </ReactMarkdown>
+              <NativeAIReport response={message.content} title="Document conversation answer" />
             </div>
           </div>
 

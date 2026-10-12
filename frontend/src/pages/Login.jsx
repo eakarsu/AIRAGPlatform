@@ -1,28 +1,27 @@
+import { useRef as useDemoLoginRef, useState as useDemoLoginState } from 'react';
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login } from '../api/client'
 import toast from 'react-hot-toast'
 
 export default function Login() {
+  const demoLoginLock = useDemoLoginRef(false);
+  const [demoLoginBusy, setDemoLoginBusy] = useDemoLoginState(false);
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
-  const handleDemoLogin = () => {
-    setEmail(import.meta.env.VITE_DEMO_EMAIL || '')
-    setPassword(import.meta.env.VITE_DEMO_PASSWORD || '')
-  }
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, demoLoginCredentials) => {
     e.preventDefault()
-    if (!email || !password) {
+    if (!(demoLoginCredentials?.email ?? email) || !(demoLoginCredentials?.password ?? password)) {
       toast.error('Please enter email and password')
       return
     }
     setLoading(true)
     try {
-      const res = await login({ email, password })
+      const res = await login({ email: (demoLoginCredentials?.email ?? email), password: (demoLoginCredentials?.password ?? password) })
       localStorage.setItem('token', res.data.access_token)
       localStorage.setItem('user', JSON.stringify(res.data.user))
       toast.success('Welcome back!')
@@ -87,14 +86,30 @@ export default function Login() {
           </form>
 
           <div className="mt-6 pt-6 border-t border-gray-200">
-            <button
-              onClick={handleDemoLogin}
+            <button type="button" disabled={loading || demoLoginBusy}
+              onClick={async (event) => {
+                if (demoLoginLock.current) return
+                const credentials = {
+                  email: import.meta.env.VITE_DEMO_EMAIL || '',
+                  password: import.meta.env.VITE_DEMO_PASSWORD || '',
+                }
+                if (!credentials.email || !credentials.password) {
+                  toast.error('Demo credentials are not configured. Contact the app owner.')
+                  return
+                }
+                demoLoginLock.current = true
+                setDemoLoginBusy(true)
+                setEmail(credentials.email)
+                setPassword(credentials.password)
+                try { await handleSubmit(event, credentials) }
+                finally { demoLoginLock.current = false; setDemoLoginBusy(false) }
+              }}
               className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-3 rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all font-medium text-base"
             >
-              Auto Fill Demo Credentials
+              Log In as Demo
             </button>
             <p className="text-center text-xs text-gray-500 mt-3">
-              demo@airag.com / demo123
+              Use the existing demo account to explore the platform.
             </p>
           </div>
         </div>

@@ -1,3 +1,5 @@
+import NativeAIReport, { reportValue } from '../components/NativeAIReport'
+import NativeAIControls from '../components/NativeAIControls';
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -35,60 +37,7 @@ function formatValue(value) {
 }
 
 function DataPreview({ data }) {
-  if (!data) return null
-  if (data.summary || data.findings || data.recommendations || data.risks || data.follow_up_questions) {
-    return <AIResultReport response={{ title: 'System Chat AI Result', result: data }} />
-  }
-
-  const rows = Array.isArray(data) ? data : Array.isArray(data.items) ? data.items : null
-  if (rows) {
-    return (
-      <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div className="border-b border-gray-100 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700">
-          Result Records · {rows.length}
-        </div>
-        <div className="max-h-80 overflow-auto">
-          {rows.length === 0 ? (
-            <p className="p-4 text-sm text-gray-500">No records returned.</p>
-          ) : (
-            <table className="min-w-full divide-y divide-gray-100">
-              <thead className="bg-gray-50">
-                <tr>
-                  {Object.keys(rows[0]).slice(0, 6).map((key) => (
-                    <th key={key} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">{titleize(key)}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {rows.slice(0, 12).map((row, index) => (
-                  <tr key={row.id || index}>
-                    {Object.keys(rows[0]).slice(0, 6).map((key) => (
-                      <td key={key} className="max-w-[220px] truncate px-3 py-2 text-sm text-gray-700">{formatValue(row[key])}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  if (typeof data === 'object') {
-    return (
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {Object.entries(data).slice(0, 16).map(([key, value]) => (
-          <div key={key} className="rounded-xl border border-gray-200 bg-white p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{titleize(key)}</p>
-            <p className="mt-1 break-words text-sm text-gray-800">{formatValue(value)}</p>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  return <p className="mt-3 text-sm text-gray-600">{formatValue(data)}</p>
+  return data === null || data === undefined ? null : <NativeAIReport response={data} title="System chat results" />
 }
 
 function MessageCard({ message, onPrompt }) {
@@ -98,7 +47,7 @@ function MessageCard({ message, onPrompt }) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[88%] rounded-2xl p-4 shadow-sm ${isUser ? 'bg-indigo-600 text-white' : 'border border-gray-200 bg-gray-50 text-gray-900'}`}>
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+        <div className="whitespace-pre-wrap text-sm leading-relaxed">{!isUser && typeof reportValue(message.content) === 'object' ? <NativeAIReport response={message.content} title="System chat answer" /> : message.content}</div>
         {!isUser && message.action && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-100">
@@ -218,7 +167,7 @@ export default function SystemChat() {
         {quickPrompts.map((prompt) => (
           <button
             key={prompt}
-            onClick={() => send(prompt)}
+            onClick={() => setInput(prompt)}
             className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
           >
             {prompt}
@@ -229,7 +178,7 @@ export default function SystemChat() {
       <div className="flex-1 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4">
         <div className="space-y-4">
           {messages.map((message) => (
-            <MessageCard key={message.id} message={message} onPrompt={send} />
+            <MessageCard key={message.id} message={message} onPrompt={suggestion => setInput(suggestion)} />
           ))}
           {sending && (
             <div className="flex justify-start">
@@ -245,9 +194,9 @@ export default function SystemChat() {
         </div>
       </div>
 
-      <div className="mt-4 flex gap-3">
+      <NativeAIControls busy={sending} context="System chat request"><div className="mt-4 flex gap-3">
         <textarea
-          value={input}
+          data-ai-field="message" value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -267,6 +216,7 @@ export default function SystemChat() {
           <HiPaperAirplane className="h-5 w-5 rotate-90" />
         </button>
       </div>
+      </NativeAIControls>
     </div>
   )
 }

@@ -1,3 +1,5 @@
+import NativeAIReport from '../components/NativeAIReport';
+import NativeAIControls from '../components/NativeAIControls';
 import { useEffect, useState } from 'react'
 import { smartSearch } from '../api/client'
 import ReactMarkdown from 'react-markdown'
@@ -46,12 +48,12 @@ export default function SmartSearch() {
       </div>
 
       {/* Search Bar */}
-      <div className="card mb-6">
+      <NativeAIControls busy={searching} context="Knowledge base search"><div className="card mb-6">
         <div className="flex gap-3">
           <div className="relative flex-1">
             <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
-              value={query}
+              data-ai-field="query" value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               placeholder="Search your knowledge base..."
@@ -72,6 +74,7 @@ export default function SmartSearch() {
         </div>
       </div>
 
+      </NativeAIControls>
       {/* Searching State */}
       {searching && (
         <div className="card text-center py-12">
@@ -97,9 +100,7 @@ export default function SmartSearch() {
                 <h2 className="text-lg font-semibold text-gray-900">AI Answer</h2>
               </div>
               <div className="prose text-sm text-gray-700">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {results.ai_answer}
-                </ReactMarkdown>
+                <NativeAIReport response={results.ai_answer} title="Knowledge base answer" />
               </div>
               <div className="mt-4 pt-3 border-t border-indigo-100 flex items-center gap-4 text-xs text-gray-400">
                 {results.model_used && (

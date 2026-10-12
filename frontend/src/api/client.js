@@ -70,7 +70,7 @@ export const deleteKnowledgeChunk = (id) => api.delete(`/knowledge/${id}`)
 // AI Features
 export const getAISummaries = () => api.get('/ai/summaries')
 export const getAISummary = (id) => api.get(`/ai/summaries/${id}`)
-export const createAISummary = (data) => api.post('/ai/summaries', data)
+export const createAISummary = (data, options = {}) => api.post('/ai/summaries', data, options)
 export const updateAISummary = (id, data) => api.put(`/ai/summaries/${id}`, data)
 export const deleteAISummary = (id) => api.delete(`/ai/summaries/${id}`)
 export const smartSearch = (data) => api.post('/ai/search', data)
