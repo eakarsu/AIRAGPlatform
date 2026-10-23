@@ -69,6 +69,8 @@ if os.environ.get("ENABLE_GENERATED_ROUTES") == "true" and os.environ.get("ENVIR
     from routers import ai_multi_source_rag
     app.include_router(ai_multi_source_rag.router, prefix='/ai', tags=['ai-multi-source-rag'])
 
+from routers import feature_pack as _feature_pack
+app.include_router(_feature_pack.router)
 # === Custom Views (RAG Views) ===
 from routers import custom_views as _custom_views
 app.include_router(_custom_views.router)

@@ -193,9 +193,37 @@ def upload_document(
     return DocumentResponse(**doc_to_response(doc, db))
 
 
+@router.get("/export")
+def export_documents(format: str = "json", search: str = "", status: str = "", workspace_id: int = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    query = db.query(Document)
+    if workspace_id is not None:
+        assert_workspace_access(db, current_user, workspace_id)
+        query = query.filter(Document.workspace_id == workspace_id)
+    else:
+        query = query.filter(document_scope_filter(db, current_user))
+    if search:
+        query = query.filter((Document.title.ilike(f"%{search}%")) | (Document.filename.ilike(f"%{search}%")))
+    if status:
+        query = query.filter(Document.status == status)
+    docs = query.order_by(Document.created_at.desc()).all()
+    rows = [doc_to_response(d, db) for d in docs]
+    if format.lower() == "csv":
+        import csv as _csv, io as _io
+        from fastapi.responses import PlainTextResponse as _PTR
+        buf = _io.StringIO(); w = _csv.writer(buf)
+        w.writerow(["id", "title", "filename", "file_type", "status"])
+        for r in rows: w.writerow([r["id"], r["title"], r["filename"], r["file_type"], r["status"]])
+        return _PTR(buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="documents.csv"'})
+    if format.lower() != "json":
+        raise HTTPException(status_code=400, detail="format must be json or csv")
+    return {"data": [{k: str(v) if v is not None else None for k, v in r.items()} for r in rows]}
+
+
 @router.get("/", response_model=list[DocumentResponse])
 def list_documents(
     workspace_id: int = None,
+    search: str = "",
+    status: str = "",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_optional_user),
 ):
@@ -205,6 +233,10 @@ def list_documents(
         query = query.filter(Document.workspace_id == workspace_id)
     else:
         query = query.filter(document_scope_filter(db, current_user))
+    if search:
+        query = query.filter((Document.title.ilike(f"%{search}%")) | (Document.filename.ilike(f"%{search}%")))
+    if status:
+        query = query.filter(Document.status == status)
     docs = query.order_by(Document.created_at.desc()).all()
     return [DocumentResponse(**doc_to_response(d, db)) for d in docs]
 
